@@ -114,3 +114,30 @@ tr:last-child td { border-bottom: none; }
   border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px;
 }
 .msg-vazio { text-align: center; color: var(--texto-suave); font-size: 13px; padding: 30px 0; }
+
+/* ---------- Pessoas: linhas expansíveis ---------- */
+.linha-pessoa { cursor: pointer; }
+.linha-pessoa:hover { background: var(--bg); }
+.linha-detalhe { background: #fafbfc; }
+.linha-detalhe td { padding: 16px 8px 20px 28px; }
+.contrato-bloco {
+  border: 1px solid var(--borda); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; background: #fff;
+}
+.contrato-bloco .cabecalho { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.contrato-bloco .bm { font-weight: 600; font-size: 13px; }
+.lotacao-linha { font-size: 13px; color: var(--texto-suave); padding: 4px 0; display: flex; gap: 10px; align-items: center; }
+.dias-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.dia-chip {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--bg); color: var(--texto-suave); font-weight: 600;
+}
+.dia-chip.ativo-dia { background: #eaf3ee; color: var(--verde-escuro); }
+.toggle-ativo { cursor: pointer; }
+.badge-ativo { background: #eaf3ee; color: var(--verde-escuro); }
+.badge-inativo { background: #f1f2f5; color: var(--texto-suave); }
+
+.checkbox-dias { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.checkbox-dias label { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.checkbox-dias input { width: auto; }
+
+.link-acao { color: var(--verde); font-size: 12px; cursor: pointer; font-weight: 600; background: none; border: none; font-family: inherit; padding: 0; }
+.divisor { border: none; border-top: 1px solid var(--borda); margin: 16px 0; }
