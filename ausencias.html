@@ -28,6 +28,7 @@
   .chips-dias-avulsos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .chip-dia button { background: none; border: none; cursor: pointer; color: var(--erro-texto); font-weight: 700; }
   .aviso-ferista { font-size: 12px; color: var(--texto-suave); margin-top: 6px; }
+  .aviso-info { font-size: 12px; color: var(--texto-suave); margin: 6px 0 12px; background: var(--bg); padding: 8px 12px; border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -52,42 +53,46 @@
 
   <div id="conteudo-form" style="display:none">
     <div class="card">
-      <h2>Nova ausência</h2>
+      <h2 id="titulo-form">Nova ausência</h2>
       <div id="form-erro"></div>
 
-      <div class="form-field busca-wrap">
-        <label>Pessoa</label>
-        <div id="pessoa-selecionada-area"></div>
-        <input id="busca-pessoa" type="text" placeholder="Digite o nome..." autocomplete="off">
-        <div id="busca-sugestoes" class="busca-sugestoes" style="display:none"></div>
+      <div class="form-field">
+        <label>Motivo</label>
+        <select id="af-motivo">
+          <option>Férias Regulamentares</option>
+          <option>Férias Prêmio</option>
+          <option>Licença médica</option>
+          <option>Licença maternidade</option>
+          <option>Licença paternidade</option>
+          <option>Licença Gala</option>
+          <option>Vacância do cargo</option>
+          <option>Afastamento INSS</option>
+          <option>Falta não justificada</option>
+          <option>Pausa Contratual</option>
+          <option>Folga</option>
+          <option>Folga - Serviço Eleitoral</option>
+          <option>Outro</option>
+        </select>
       </div>
 
-      <div id="campo-equipe-wrap" style="display:none">
+      <div id="bloco-pessoa">
+        <div class="form-field busca-wrap">
+          <label>Pessoa</label>
+          <div id="pessoa-selecionada-area"></div>
+          <input id="busca-pessoa" type="text" placeholder="Digite o nome..." autocomplete="off">
+          <div id="busca-sugestoes" class="busca-sugestoes" style="display:none"></div>
+        </div>
+      </div>
+
+      <div id="bloco-vacancia" style="display:none">
+        <p class="aviso-info">Vacância do cargo não exige nome de profissional — informe apenas a equipe e o turno do posto vago.</p>
+      </div>
+
+      <div class="form-row" id="campo-equipe-wrap" style="display:none">
         <div class="form-field">
           <label id="label-equipe">Equipe</label>
           <select id="af-equipe"></select>
           <div id="aviso-ferista" class="aviso-ferista" style="display:none">Esta pessoa é ferista (sem equipe fixa) — selecione a equipe à qual a ausência se refere.</div>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-field">
-          <label>Motivo</label>
-          <select id="af-motivo">
-            <option>Férias Regulamentares</option>
-            <option>Férias Prêmio</option>
-            <option>Licença médica</option>
-            <option>Licença maternidade</option>
-            <option>Licença paternidade</option>
-            <option>Licença Gala</option>
-            <option>Vacância do cargo</option>
-            <option>Afastamento INSS</option>
-            <option>Falta não justificada</option>
-            <option>Pausa Contratual</option>
-            <option>Folga</option>
-            <option>Folga - Serviço Eleitoral</option>
-            <option>Outro</option>
-          </select>
         </div>
         <div class="form-field" id="campo-turno">
           <label>Turno</label>
@@ -98,36 +103,18 @@
         </div>
       </div>
 
-      <div class="form-row">
-        <div class="form-field">
-          <label>Tipo de período</label>
-          <select id="af-tipo-periodo">
-            <option value="continuo">Contínuo (data início - fim)</option>
-            <option value="avulso">Dias avulsos</option>
-          </select>
+      <div class="form-field">
+        <label>Dias</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="af-dia-avulso" type="date">
+          <button class="btn-secundario" onclick="adicionarDiaAvulso()">+ dia</button>
+          <span style="color:var(--texto-suave);font-size:12px">ou</span>
+          <input id="af-intervalo-inicio" type="date">
+          <span style="font-size:12px">até</span>
+          <input id="af-intervalo-fim" type="date">
+          <button class="btn-secundario" onclick="adicionarIntervalo()">+ intervalo</button>
         </div>
-      </div>
-
-      <div id="periodo-continuo" class="form-row">
-        <div class="form-field">
-          <label>Data início</label>
-          <input id="af-data-inicio" type="date">
-        </div>
-        <div class="form-field">
-          <label>Data fim</label>
-          <input id="af-data-fim" type="date">
-        </div>
-      </div>
-
-      <div id="periodo-avulso" class="form-row" style="display:none">
-        <div class="form-field">
-          <label>Adicionar dia</label>
-          <div style="display:flex;gap:8px">
-            <input id="af-dia-avulso" type="date">
-            <button class="btn-secundario" onclick="adicionarDiaAvulso()">Adicionar</button>
-          </div>
-          <div id="chips-dias" class="chips-dias-avulsos"></div>
-        </div>
+        <div id="chips-dias" class="chips-dias-avulsos"></div>
       </div>
 
       <div class="form-field">
@@ -135,8 +122,9 @@
         <input id="af-observacoes" type="text">
       </div>
 
-      <div style="margin-top:16px">
-        <button class="btn-primario" onclick="salvarAusencia()">Registrar ausência</button>
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button class="btn-primario" id="btn-salvar" onclick="salvarAusencia()">Registrar ausência</button>
+        <button class="btn-secundario" id="btn-cancelar-edicao" style="display:none" onclick="cancelarEdicao()">Cancelar edição</button>
       </div>
     </div>
   </div>
@@ -165,10 +153,9 @@ var pessoasCache = [];
 var equipesCache = [];
 var ausenciasCache = [];
 var pessoaSelecionada = null;
-var diasAvulsos = [];
+var diasSelecionados = [];
 var souGestor = false;
-
-var MOTIVO_LABEL_OK = true;
+var idEmEdicao = null;
 
 function initTela() {
   document.getElementById('app').style.display = 'block';
@@ -187,11 +174,8 @@ function initTela() {
     document.getElementById('conteudo-form').style.display = 'block';
   }
 
-  document.getElementById('af-tipo-periodo').addEventListener('change', function () {
-    var continuo = this.value === 'continuo';
-    document.getElementById('periodo-continuo').style.display = continuo ? 'flex' : 'none';
-    document.getElementById('periodo-avulso').style.display = continuo ? 'none' : 'flex';
-  });
+  document.getElementById('af-motivo').addEventListener('change', onMotivoChange);
+  document.getElementById('af-equipe').addEventListener('change', onEquipeManualChange);
 
   document.getElementById('busca-pessoa').addEventListener('input', onBuscaPessoaInput);
   document.addEventListener('click', function (e) {
@@ -208,7 +192,7 @@ function initTela() {
 function carregarPessoas() {
   return supabaseClient
     .from('pessoas')
-    .select('id, nome, categoria, ativo, contratos(lotacoes(equipe_id, equipes(nome)))')
+    .select('id, nome, categoria, ativo, contratos(lotacoes(equipe_id, turno, equipes(nome)))')
     .eq('ativo', true)
     .order('nome')
     .then(function (res) {
@@ -232,11 +216,36 @@ function equipesDaPessoa(pessoa) {
     (c.lotacoes || []).forEach(function (l) {
       if (l.equipe_id && !vistos[l.equipe_id]) {
         vistos[l.equipe_id] = true;
-        lista.push({ id: l.equipe_id, nome: l.equipes ? l.equipes.nome : '' });
+        lista.push({ id: l.equipe_id, nome: l.equipes ? l.equipes.nome : '', turno: l.turno });
       }
     });
   });
   return lista;
+}
+
+function onMotivoChange() {
+  var vacancia = document.getElementById('af-motivo').value === 'Vacância do cargo';
+  document.getElementById('bloco-pessoa').style.display = vacancia ? 'none' : 'block';
+  document.getElementById('bloco-vacancia').style.display = vacancia ? 'block' : 'none';
+
+  if (vacancia) {
+    limparPessoaSelecionada(true);
+    document.getElementById('campo-equipe-wrap').style.display = 'flex';
+    document.getElementById('af-equipe').disabled = false;
+    document.getElementById('af-equipe').innerHTML = equipesCache.map(function (e) {
+      return '<option value="' + e.id + '">' + e.nome + '</option>';
+    }).join('');
+    document.getElementById('aviso-ferista').style.display = 'none';
+    document.getElementById('af-turno').innerHTML = '<option value="MANHA">Manhã</option><option value="INTER">Intermediário</option><option value="TARDE">Tarde</option>';
+  } else if (!pessoaSelecionada) {
+    document.getElementById('campo-equipe-wrap').style.display = 'none';
+  }
+}
+
+function onEquipeManualChange() {
+  if (pessoaSelecionada) {
+    aplicarTurnoAutomatico(pessoaSelecionada, document.getElementById('af-equipe').value);
+  }
 }
 
 function onBuscaPessoaInput() {
@@ -248,13 +257,9 @@ function onBuscaPessoaInput() {
     return p.nome.toLowerCase().indexOf(termo) !== -1;
   }).slice(0, 8);
 
-  if (resultados.length === 0) {
-    sugestoesEl.innerHTML = '<div class="busca-sugestao-item">Nenhuma pessoa encontrada</div>';
-  } else {
-    sugestoesEl.innerHTML = resultados.map(function (p) {
-      return '<div class="busca-sugestao-item" onclick="selecionarPessoa(\'' + p.id + '\')">' + p.nome + '</div>';
-    }).join('');
-  }
+  sugestoesEl.innerHTML = (resultados.length ? resultados.map(function (p) {
+    return '<div class="busca-sugestao-item" onclick="selecionarPessoa(\'' + p.id + '\')">' + p.nome + '</div>';
+  }).join('') : '<div class="busca-sugestao-item">Nenhuma pessoa encontrada</div>');
   sugestoesEl.style.display = 'block';
 }
 
@@ -273,20 +278,21 @@ function selecionarPessoa(id) {
   var avisoFerista = document.getElementById('aviso-ferista');
   var selEquipe = document.getElementById('af-equipe');
 
+  equipeWrap.style.display = 'flex';
+
   if (equipesPessoa.length === 1) {
-    equipeWrap.style.display = 'block';
     avisoFerista.style.display = 'none';
     selEquipe.innerHTML = '<option value="' + equipesPessoa[0].id + '">' + equipesPessoa[0].nome + '</option>';
     selEquipe.disabled = true;
+    aplicarTurnoAutomatico(pessoaSelecionada, equipesPessoa[0].id);
   } else if (equipesPessoa.length > 1) {
-    equipeWrap.style.display = 'block';
     avisoFerista.style.display = 'none';
     selEquipe.disabled = false;
     selEquipe.innerHTML = equipesPessoa.map(function (e) {
       return '<option value="' + e.id + '">' + e.nome + '</option>';
     }).join('');
+    aplicarTurnoAutomatico(pessoaSelecionada, equipesPessoa[0].id);
   } else {
-    equipeWrap.style.display = 'block';
     avisoFerista.style.display = 'block';
     selEquipe.disabled = false;
     selEquipe.innerHTML = equipesCache.map(function (e) {
@@ -307,96 +313,163 @@ function selecionarPessoa(id) {
   }
 }
 
-function limparPessoaSelecionada() {
+function aplicarTurnoAutomatico(pessoa, equipeId) {
+  if (pessoa.categoria === 'tecnico_enfermagem') return;
+  var equipesPessoa = equipesDaPessoa(pessoa);
+  var match = equipesPessoa.find(function (e) { return e.id === equipeId; });
+  if (match && match.turno) {
+    document.getElementById('af-turno').value = match.turno;
+  }
+}
+
+function limparPessoaSelecionada(mantendoOculto) {
   pessoaSelecionada = null;
   document.getElementById('pessoa-selecionada-area').innerHTML = '';
-  document.getElementById('busca-pessoa').style.display = 'block';
+  if (!mantendoOculto) {
+    document.getElementById('busca-pessoa').style.display = 'block';
+  }
   document.getElementById('busca-pessoa').value = '';
-  document.getElementById('campo-equipe-wrap').style.display = 'none';
 }
 
 function adicionarDiaAvulso() {
   var val = document.getElementById('af-dia-avulso').value;
   if (!val) return;
-  if (diasAvulsos.indexOf(val) === -1) diasAvulsos.push(val);
-  diasAvulsos.sort();
+  if (diasSelecionados.indexOf(val) === -1) diasSelecionados.push(val);
+  diasSelecionados.sort();
   renderChipsDias();
   document.getElementById('af-dia-avulso').value = '';
 }
 
+function adicionarIntervalo() {
+  var ini = document.getElementById('af-intervalo-inicio').value;
+  var fim = document.getElementById('af-intervalo-fim').value;
+  if (!ini || !fim) return;
+  var atual = new Date(ini + 'T00:00:00');
+  var fimData = new Date(fim + 'T00:00:00');
+  while (atual <= fimData) {
+    var iso = atual.toISOString().slice(0, 10);
+    if (diasSelecionados.indexOf(iso) === -1) diasSelecionados.push(iso);
+    atual.setDate(atual.getDate() + 1);
+  }
+  diasSelecionados.sort();
+  renderChipsDias();
+  document.getElementById('af-intervalo-inicio').value = '';
+  document.getElementById('af-intervalo-fim').value = '';
+}
+
 function removerDiaAvulso(val) {
-  diasAvulsos = diasAvulsos.filter(function (d) { return d !== val; });
+  diasSelecionados = diasSelecionados.filter(function (d) { return d !== val; });
   renderChipsDias();
 }
 
 function renderChipsDias() {
-  document.getElementById('chips-dias').innerHTML = diasAvulsos.map(function (d) {
-    return '<span class="chip-dia">' + d + ' <button onclick="removerDiaAvulso(\'' + d + '\')">&times;</button></span>';
+  document.getElementById('chips-dias').innerHTML = diasSelecionados.map(function (d) {
+    return '<span class="chip-dia">' + d.split('-').reverse().join('/') + ' <button onclick="removerDiaAvulso(\'' + d + '\')">&times;</button></span>';
   }).join('');
 }
 
-function gerarDiasContinuo(inicio, fim) {
-  var dias = [];
-  var atual = new Date(inicio + 'T00:00:00');
-  var fimData = new Date(fim + 'T00:00:00');
-  while (atual <= fimData) {
-    dias.push(atual.toISOString().slice(0, 10));
-    atual.setDate(atual.getDate() + 1);
+function inferirTipoPeriodo(dias) {
+  if (dias.length <= 1) return 'avulso';
+  for (var i = 1; i < dias.length; i++) {
+    var anterior = new Date(dias[i - 1] + 'T00:00:00');
+    var atual = new Date(dias[i] + 'T00:00:00');
+    var diffDias = Math.round((atual - anterior) / 86400000);
+    if (diffDias !== 1) return 'avulso';
   }
-  return dias;
+  return 'continuo';
 }
 
 function salvarAusencia() {
   var erroEl = document.getElementById('form-erro');
   erroEl.innerHTML = '';
 
-  if (!pessoaSelecionada) { erroEl.innerHTML = '<p class="msg-erro">Selecione uma pessoa.</p>'; return; }
+  var motivo = document.getElementById('af-motivo').value;
+  var vacancia = motivo === 'Vacância do cargo';
+
+  if (!vacancia && !pessoaSelecionada) { erroEl.innerHTML = '<p class="msg-erro">Selecione uma pessoa.</p>'; return; }
+  if (diasSelecionados.length === 0) { erroEl.innerHTML = '<p class="msg-erro">Adicione ao menos um dia.</p>'; return; }
 
   var equipeId = document.getElementById('af-equipe').value;
-  var motivo = document.getElementById('af-motivo').value;
-  var tipoPeriodo = document.getElementById('af-tipo-periodo').value;
-  var ehTecnico = pessoaSelecionada.categoria === 'tecnico_enfermagem';
+  if (!equipeId) { erroEl.innerHTML = '<p class="msg-erro">Selecione a equipe.</p>'; return; }
+
+  var ehTecnico = pessoaSelecionada && pessoaSelecionada.categoria === 'tecnico_enfermagem';
   var turno = ehTecnico ? null : document.getElementById('af-turno').value;
   var observacoes = document.getElementById('af-observacoes').value.trim() || null;
+  var tipoPeriodo = inferirTipoPeriodo(diasSelecionados);
 
-  var dias;
-  if (tipoPeriodo === 'continuo') {
-    var ini = document.getElementById('af-data-inicio').value;
-    var fim = document.getElementById('af-data-fim').value;
-    if (!ini || !fim) { erroEl.innerHTML = '<p class="msg-erro">Informe data início e fim.</p>'; return; }
-    dias = gerarDiasContinuo(ini, fim);
-  } else {
-    if (diasAvulsos.length === 0) { erroEl.innerHTML = '<p class="msg-erro">Adicione ao menos um dia.</p>'; return; }
-    dias = diasAvulsos;
-  }
-
-  supabaseClient.from('ausencias').insert({
-    pessoa_id: pessoaSelecionada.id,
+  var payload = {
+    pessoa_id: vacancia ? null : pessoaSelecionada.id,
     equipe_id: equipeId,
     motivo: motivo,
     tipo_periodo: tipoPeriodo,
     turno: turno,
-    dias: dias,
+    dias: diasSelecionados,
     observacoes: observacoes
-  }).then(function (res) {
+  };
+
+  var query = idEmEdicao
+    ? supabaseClient.from('ausencias').update(payload).eq('id', idEmEdicao)
+    : supabaseClient.from('ausencias').insert(payload);
+
+  query.then(function (res) {
     if (res.error) {
       erroEl.innerHTML = '<p class="msg-erro">Erro ao salvar: ' + res.error.message + '</p>';
       return;
     }
-    limparPessoaSelecionada();
-    diasAvulsos = [];
-    renderChipsDias();
-    document.getElementById('af-observacoes').value = '';
-    document.getElementById('af-data-inicio').value = '';
-    document.getElementById('af-data-fim').value = '';
+    cancelarEdicao();
     carregarAusencias();
   });
+}
+
+function iniciarEdicao(ausenciaId) {
+  var a = ausenciasCache.find(function (x) { return x.id === ausenciaId; });
+  if (!a) return;
+
+  idEmEdicao = ausenciaId;
+  document.getElementById('titulo-form').textContent = 'Editar ausência';
+  document.getElementById('btn-salvar').textContent = 'Salvar edição';
+  document.getElementById('btn-cancelar-edicao').style.display = 'inline-block';
+
+  document.getElementById('af-motivo').value = a.motivo;
+  onMotivoChange();
+
+  diasSelecionados = (a.dias || []).slice();
+  renderChipsDias();
+  document.getElementById('af-observacoes').value = a.observacoes || '';
+
+  if (a.pessoa_id) {
+    var pessoa = pessoasCache.find(function (p) { return p.id === a.pessoa_id; });
+    if (pessoa) {
+      selecionarPessoa(pessoa.id);
+      document.getElementById('af-equipe').value = a.equipe_id;
+      document.getElementById('af-equipe').disabled = equipesDaPessoa(pessoa).length <= 1;
+    }
+  } else {
+    document.getElementById('af-equipe').value = a.equipe_id;
+  }
+  if (a.turno) document.getElementById('af-turno').value = a.turno;
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelarEdicao() {
+  idEmEdicao = null;
+  document.getElementById('titulo-form').textContent = 'Nova ausência';
+  document.getElementById('btn-salvar').textContent = 'Registrar ausência';
+  document.getElementById('btn-cancelar-edicao').style.display = 'none';
+  document.getElementById('af-motivo').value = 'Férias Regulamentares';
+  onMotivoChange();
+  limparPessoaSelecionada();
+  diasSelecionados = [];
+  renderChipsDias();
+  document.getElementById('af-observacoes').value = '';
+  document.getElementById('campo-equipe-wrap').style.display = 'none';
 }
 
 function carregarAusencias() {
   supabaseClient
     .from('ausencias')
-    .select('id, motivo, tipo_periodo, turno, dias, observacoes, pessoas(nome), equipes(nome)')
+    .select('id, pessoa_id, equipe_id, motivo, tipo_periodo, turno, dias, observacoes, pessoas(nome), equipes(nome)')
     .order('created_at', { ascending: false })
     .then(function (res) {
       if (res.error) {
@@ -412,7 +485,9 @@ function carregarAusencias() {
 function renderTabelaAusencias() {
   var termo = document.getElementById('busca-lista').value.trim().toLowerCase();
   var lista = ausenciasCache.filter(function (a) {
-    return !termo || (a.pessoas && a.pessoas.nome.toLowerCase().indexOf(termo) !== -1);
+    if (!termo) return true;
+    var nome = a.pessoas ? a.pessoas.nome.toLowerCase() : 'vaga';
+    return nome.indexOf(termo) !== -1;
   });
 
   document.getElementById('contador-ausencias').textContent = lista.length;
@@ -429,16 +504,17 @@ function renderTabelaAusencias() {
   body.innerHTML = lista.map(function (a) {
     var dias = a.dias || [];
     var periodo = dias.length > 1 ? (dias[0] + ' a ' + dias[dias.length - 1] + ' (' + dias.length + ' dias)') : dias[0];
-    var acao = souGestor
-      ? '<button class="btn-icon excluir" onclick="excluirAusencia(\'' + a.id + '\')">Excluir</button>'
+    var acoes = souGestor
+      ? '<button class="btn-icon" onclick="iniciarEdicao(\'' + a.id + '\')">Editar</button> ' +
+        '<button class="btn-icon excluir" onclick="excluirAusencia(\'' + a.id + '\')">Excluir</button>'
       : '';
     return '<tr>' +
-      '<td>' + (a.pessoas ? a.pessoas.nome : '—') + '</td>' +
+      '<td>' + (a.pessoas ? a.pessoas.nome : '<em>Vaga (sem profissional)</em>') + '</td>' +
       '<td>' + (a.equipes ? a.equipes.nome : '—') + '</td>' +
       '<td>' + a.motivo + '</td>' +
       '<td>' + periodo + '</td>' +
       '<td>' + (a.turno || 'Base inteira') + '</td>' +
-      '<td>' + acao + '</td>' +
+      '<td>' + acoes + '</td>' +
       '</tr>';
   }).join('');
 }
