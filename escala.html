@@ -118,9 +118,10 @@ function initTela() {
 }
 
 function renderLegenda() {
-  var itens = [CODIGO_NORMAL].concat(Object.values(CODIGO_INFO));
-  document.getElementById('legenda').innerHTML = itens.map(function (i) {
-    return '<div class="legenda-item"><span class="legenda-cor" style="background:' + i.bg + '"></span>' + i.codigo + '</div>';
+  var pares = [['Cobertura normal', CODIGO_NORMAL]].concat(Object.entries(CODIGO_INFO));
+  document.getElementById('legenda').innerHTML = pares.map(function (p) {
+    var nome = p[0], i = p[1];
+    return '<div class="legenda-item" title="' + nome + '"><span class="legenda-cor" style="background:' + i.bg + '"></span>' + i.codigo + '</div>';
   }).join('');
 }
 
@@ -141,7 +142,7 @@ function calcularDiasDoMes(mesStr) {
   for (var d = 1; d <= ultimoDia; d++) {
     var dataObj = new Date(ano, mes - 1, d);
     var iso = ano + '-' + String(mes).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-    dias.push({ iso: iso, numero: d, letra: DIA_SEMANA_LETRA[dataObj.getDay()] });
+    dias.push({ iso: iso, numero: d, letra: DIA_SEMANA_LETRA[dataObj.getDay()], dow: dataObj.getDay() });
   }
   return dias;
 }
@@ -248,8 +249,23 @@ function renderGrade() {
 
     diasDoMes.forEach(function (d) {
       var ausencia = ausenciaPara(l.pessoaId, l.turno, d.iso);
-      var info = ausencia ? (CODIGO_INFO[ausencia.motivo] || CODIGO_NORMAL) : CODIGO_NORMAL;
-      var codigo = ausencia ? info.codigo : 'C';
+      var fimDeSemana = (d.dow === 0 || d.dow === 6);
+      var info, codigo, tituloTip;
+
+      if (ausencia) {
+        info = CODIGO_INFO[ausencia.motivo] || CODIGO_NORMAL;
+        codigo = info.codigo;
+        tituloTip = ausencia.motivo;
+      } else if (fimDeSemana) {
+        info = { bg: '#e8eaed', cor: '#9aa2ad' };
+        codigo = '';
+        tituloTip = 'Fim de semana';
+      } else {
+        info = CODIGO_NORMAL;
+        codigo = 'C';
+        tituloTip = 'Cobertura normal (sem ausência)';
+      }
+
       var coberturas = ausencia ? alocacoesPara(l.equipeId, l.turno, d.iso) : [];
       var marcador = '';
       if (ausencia) {
@@ -257,7 +273,7 @@ function renderGrade() {
           ? '<span class="marcador-ok"></span>'
           : '<span class="marcador-gap"></span>';
       }
-      html += '<td class="dia-cel" style="background:' + info.bg + ';color:' + info.cor + '" ' +
+      html += '<td class="dia-cel" style="background:' + info.bg + ';color:' + info.cor + '" title="' + tituloTip + '" ' +
         'onclick="abrirModalDia(\'' + l.equipeId + '\',\'' + l.turno + '\',\'' + d.iso + '\',\'' + l.pessoaId + '\')">' +
         codigo + marcador + '</td>';
     });
@@ -274,7 +290,7 @@ var buscaPessoaModalCache = [];
 function abrirModalDia(equipeId, turno, dataIso, pessoaIdTitular) {
   var linha = linhasGrade.find(function (l) { return l.equipeId === equipeId && l.turno === turno && l.pessoaId === pessoaIdTitular; });
   var ausencia = ausenciaPara(pessoaIdTitular, turno, dataIso);
-  var coberturas = alocacoesPara(equipeId, turno, dataIso);
+  var coberturas = ausencia ? alocacoesPara(equipeId, turno, dataIso) : [];
   var turnoLabel = turno === 'MANHA' ? 'Manhã' : turno === 'INTER' ? 'Intermediário' : 'Tarde';
 
   var container = document.getElementById('modal-dia-container');
@@ -288,23 +304,86 @@ function abrirModalDia(equipeId, turno, dataIso, pessoaIdTitular) {
           ? '<p><strong>Ausência:</strong> ' + ausencia.motivo + '</p>'
           : '<p style="color:var(--verde-escuro)"><strong>Sem ausência registrada</strong> (titular presente)</p>') +
         '<hr class="divisor">' +
-        '<h4 style="font-size:13px;margin-bottom:8px">Coberturas lançadas</h4>' +
-        '<div id="lista-coberturas">' + renderListaCoberturas(coberturas) + '</div>' +
-        (ausencia ? renderFormNovaCobertura(equipeId, turno, dataIso, ausencia) : '') +
+        '<h4 style="font-size:13px;margin-bottom:8px">Cobertura</h4>' +
+        '<div id="lista-coberturas">' + renderListaCoberturas(coberturas, equipeId, turno, dataIso) + '</div>' +
+        (ausencia && coberturas.length === 0 ? renderFormNovaCobertura(equipeId, turno, dataIso, ausencia) : '') +
       '</div>' +
     '</div>';
 }
 
-function renderListaCoberturas(coberturas) {
+function renderListaCoberturas(coberturas, equipeId, turno, dataIso) {
   if (coberturas.length === 0) return '<p class="msg-vazio" style="padding:10px 0">Nenhuma cobertura lançada.</p>';
   return coberturas.map(function (c) {
     var tipoLabel = c.tipo === 'cobertura_ferista' ? 'Ferista' : c.tipo === 'cobertura_extra' ? 'Extra' : 'Compensação';
-    return '<div class="cobertura-item"><span>' + (c.pessoas ? c.pessoas.nome : '—') + ' &middot; ' + tipoLabel + '</span>' +
-      '<button class="btn-icon excluir" onclick="excluirCobertura(\'' + c.id + '\')">Excluir</button></div>';
+    return '<div id="cobertura-item-' + c.id + '">' +
+      '<div class="cobertura-item"><span>' + (c.pessoas ? c.pessoas.nome : '—') + ' &middot; ' + tipoLabel + '</span>' +
+      '<span>' +
+        '<button class="btn-icon" onclick="mostrarEdicaoCobertura(\'' + c.id + '\',\'' + equipeId + '\',\'' + turno + '\',\'' + dataIso + '\')">Editar</button> ' +
+        '<button class="btn-icon excluir" onclick="excluirCobertura(\'' + c.id + '\')">Excluir</button>' +
+      '</span></div></div>';
   }).join('');
 }
 
-function renderFormNovaCobertura(equipeId, turno, dataIso, ausencia) {
+function mostrarEdicaoCobertura(coberturaId, equipeId, turno, dataIso) {
+  var c = alocacoesMes.find(function (a) { return a.id === coberturaId; });
+  if (!c) return;
+  var linha = linhasGrade.find(function (l) { return l.equipeId === equipeId && l.turno === turno; });
+  var ausenciaReal = linha ? ausenciaPara(linha.pessoaId, turno, dataIso) : null;
+  var extraPermitido = ausenciaReal ? MOTIVOS_PERMITEM_EXTRA.indexOf(ausenciaReal.motivo) !== -1 : true;
+
+  var el = document.getElementById('cobertura-item-' + coberturaId);
+  el.innerHTML =
+    '<div style="padding:10px 0;border-bottom:1px solid var(--borda)">' +
+    '<div class="form-field" style="position:relative">' +
+      '<label>Pessoa</label>' +
+      '<input id="edit-busca-pessoa-' + coberturaId + '" type="text" value="' + (c.pessoas ? c.pessoas.nome : '') + '" oninput="onBuscaEdicaoInput(\'' + coberturaId + '\')" autocomplete="off">' +
+      '<div id="edit-sugestoes-' + coberturaId + '" class="busca-sugestoes" style="display:none"></div>' +
+    '</div>' +
+    '<div class="form-field">' +
+      '<label>Tipo</label>' +
+      '<select id="edit-tipo-' + coberturaId + '">' +
+        '<option value="cobertura_ferista"' + (c.tipo === 'cobertura_ferista' ? ' selected' : '') + '>Cobertura ferista</option>' +
+        (extraPermitido ? '<option value="cobertura_extra"' + (c.tipo === 'cobertura_extra' ? ' selected' : '') + '>Cobertura extra</option>' : '') +
+        '<option value="compensacao"' + (c.tipo === 'compensacao' ? ' selected' : '') + '>Compensação</option>' +
+      '</select>' +
+    '</div>' +
+    '<button class="btn-primario" onclick="salvarEdicaoCobertura(\'' + coberturaId + '\',\'' + equipeId + '\',\'' + turno + '\',\'' + dataIso + '\')">Salvar</button>' +
+    '</div>';
+  window['edicaoPessoaId_' + coberturaId] = c.pessoa_id;
+}
+
+function onBuscaEdicaoInput(coberturaId) {
+  var termo = document.getElementById('edit-busca-pessoa-' + coberturaId).value.trim().toLowerCase();
+  var categoria = document.getElementById('f-categoria').value;
+  var sugestoesEl = document.getElementById('edit-sugestoes-' + coberturaId);
+  if (!termo) { sugestoesEl.style.display = 'none'; return; }
+
+  carregarPessoasModalSeNecessario(function () {
+    var resultados = pessoasCache.filter(function (p) {
+      return p.categoria === categoria && p.nome.toLowerCase().indexOf(termo) !== -1;
+    }).slice(0, 8);
+    sugestoesEl.innerHTML = resultados.map(function (p) {
+      return '<div class="busca-sugestao-item" onclick="selecionarPessoaEdicao(\'' + coberturaId + '\',\'' + p.id + '\',\'' + p.nome.replace(/'/g, "\\'") + '\')">' + p.nome + '</div>';
+    }).join('') || '<div class="busca-sugestao-item">Nenhuma pessoa encontrada</div>';
+    sugestoesEl.style.display = 'block';
+  });
+}
+
+function selecionarPessoaEdicao(coberturaId, pessoaId, nome) {
+  window['edicaoPessoaId_' + coberturaId] = pessoaId;
+  document.getElementById('edit-busca-pessoa-' + coberturaId).value = nome;
+  document.getElementById('edit-sugestoes-' + coberturaId).style.display = 'none';
+}
+
+function salvarEdicaoCobertura(coberturaId, equipeId, turno, dataIso) {
+  var pessoaId = window['edicaoPessoaId_' + coberturaId];
+  var tipo = document.getElementById('edit-tipo-' + coberturaId).value;
+  supabaseClient.from('alocacoes').update({ pessoa_id: pessoaId, tipo: tipo }).eq('id', coberturaId).then(function (res) {
+    if (res.error) { alert('Erro: ' + res.error.message); return; }
+    carregarGrade();
+    fecharModalDia();
+  });
+}
   var extraPermitido = MOTIVOS_PERMITEM_EXTRA.indexOf(ausencia.motivo) !== -1;
   return '<hr class="divisor">' +
     '<h4 style="font-size:13px;margin-bottom:8px">Adicionar cobertura</h4>' +
@@ -328,25 +407,30 @@ function renderFormNovaCobertura(equipeId, turno, dataIso, ausencia) {
 
 var modalPessoaSelecionadaId = null;
 
+function carregarPessoasModalSeNecessario(callback) {
+  if (pessoasCache.length > 0) { callback(); return; }
+  supabaseClient.from('pessoas').select('id, nome, categoria').eq('ativo', true).order('nome').then(function (res) {
+    pessoasCache = res.data || [];
+    callback();
+  });
+}
+
 function onBuscaModalInput() {
   var termo = document.getElementById('modal-busca-pessoa').value.trim().toLowerCase();
+  var categoria = document.getElementById('f-categoria').value;
   var sugestoesEl = document.getElementById('modal-sugestoes');
   modalPessoaSelecionadaId = null;
   if (!termo) { sugestoesEl.style.display = 'none'; return; }
 
-  if (pessoasCache.length === 0) {
-    supabaseClient.from('pessoas').select('id, nome').eq('ativo', true).order('nome').then(function (res) {
-      pessoasCache = res.data || [];
-      onBuscaModalInput();
-    });
-    return;
-  }
-
-  var resultados = pessoasCache.filter(function (p) { return p.nome.toLowerCase().indexOf(termo) !== -1; }).slice(0, 8);
-  sugestoesEl.innerHTML = resultados.map(function (p) {
-    return '<div class="busca-sugestao-item" onclick="selecionarPessoaModal(\'' + p.id + '\',\'' + p.nome.replace(/'/g, "\\'") + '\')">' + p.nome + '</div>';
-  }).join('') || '<div class="busca-sugestao-item">Nenhuma pessoa encontrada</div>';
-  sugestoesEl.style.display = 'block';
+  carregarPessoasModalSeNecessario(function () {
+    var resultados = pessoasCache.filter(function (p) {
+      return p.categoria === categoria && p.nome.toLowerCase().indexOf(termo) !== -1;
+    }).slice(0, 8);
+    sugestoesEl.innerHTML = resultados.map(function (p) {
+      return '<div class="busca-sugestao-item" onclick="selecionarPessoaModal(\'' + p.id + '\',\'' + p.nome.replace(/'/g, "\\'") + '\')">' + p.nome + '</div>';
+    }).join('') || '<div class="busca-sugestao-item">Nenhuma pessoa encontrada</div>';
+    sugestoesEl.style.display = 'block';
+  });
 }
 
 function selecionarPessoaModal(id, nome) {
