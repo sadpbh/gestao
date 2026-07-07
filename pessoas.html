@@ -132,17 +132,14 @@
         </div>
       </div>
       <h2>Pessoas cadastradas (<span id="contador-pessoas">0</span>)</h2>
-      <table>
-        <thead>
-          <tr><th>Nome</th><th>Categoria</th><th>CPF</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody id="tabela-pessoas-body"></tbody>
-      </table>
+      <div id="pessoas-grupos"></div>
       <div id="tabela-vazio" class="msg-vazio" style="display:none">Nenhuma pessoa encontrada.</div>
     </div>
 
   </div>
 </div>
+
+<div id="modal-pessoa-container"></div>
 
 <script>
 var equipesCache = [];
@@ -218,6 +215,20 @@ function carregarPessoas() {
     });
 }
 
+function equipesDaPessoaLista(p) {
+  var vistos = {};
+  var lista = [];
+  (p.contratos || []).forEach(function (c) {
+    (c.lotacoes || []).forEach(function (l) {
+      if (l.equipe_id && !vistos[l.equipe_id]) {
+        vistos[l.equipe_id] = true;
+        lista.push(l.equipes ? l.equipes.nome : '');
+      }
+    });
+  });
+  return lista;
+}
+
 function renderTabela() {
   var termo = document.getElementById('busca-nome').value.trim().toLowerCase();
   var lista = pessoasCache.filter(function (p) {
@@ -225,31 +236,57 @@ function renderTabela() {
   });
 
   document.getElementById('contador-pessoas').textContent = lista.length;
-  var body = document.getElementById('tabela-pessoas-body');
+  var container = document.getElementById('pessoas-grupos');
   var vazio = document.getElementById('tabela-vazio');
 
   if (lista.length === 0) {
-    body.innerHTML = '';
+    container.innerHTML = '';
     vazio.style.display = 'block';
     return;
   }
   vazio.style.display = 'none';
 
-  var html = '';
+  var grupos = {};
   lista.forEach(function (p) {
-    html += '<tr class="linha-pessoa" onclick="toggleDetalhe(\'' + p.id + '\')">' +
-      '<td>' + p.nome + '</td>' +
-      '<td>' + CATEGORIA_LABEL[p.categoria] + '</td>' +
-      '<td>' + (p.cpf || '—') + '</td>' +
-      '<td><span class="badge ' + (p.ativo ? 'badge-ativo' : 'badge-inativo') + '">' + (p.ativo ? 'Ativo' : 'Inativo') + '</span></td>' +
-      '<td><button class="btn-icon" onclick="event.stopPropagation();alternarAtivo(\'' + p.id + '\',' + p.ativo + ')">' + (p.ativo ? 'Desativar' : 'Ativar') + '</button></td>' +
-      '</tr>';
-
-    if (linhaExpandidaId === p.id) {
-      html += '<tr class="linha-detalhe"><td colspan="5">' + renderDetalhePessoa(p) + '</td></tr>';
-    }
+    var equipesP = equipesDaPessoaLista(p);
+    if (equipesP.length === 0) equipesP = ['Feristas / sem equipe fixa'];
+    equipesP.forEach(function (nomeEquipe) {
+      if (!grupos[nomeEquipe]) grupos[nomeEquipe] = [];
+      grupos[nomeEquipe].push(p);
+    });
   });
-  body.innerHTML = html;
+
+  var nomesGrupos = Object.keys(grupos).sort(function (a, b) {
+    if (a === 'Feristas / sem equipe fixa') return 1;
+    if (b === 'Feristas / sem equipe fixa') return -1;
+    return a.localeCompare(b);
+  });
+
+  container.innerHTML = nomesGrupos.map(function (nomeGrupo) {
+    var linhasHtml = grupos[nomeGrupo].map(function (p) { return linhaPessoaHtml(p); }).join('');
+    return '<div style="margin-bottom:22px">' +
+      '<h3 style="font-size:13px;color:var(--texto-suave);margin-bottom:8px">' + nomeGrupo + ' (' + grupos[nomeGrupo].length + ')</h3>' +
+      '<table><thead><tr><th>Nome</th><th>Categoria</th><th>CPF</th><th>Status</th><th></th></tr></thead>' +
+      '<tbody>' + linhasHtml + '</tbody></table>' +
+      '</div>';
+  }).join('');
+}
+
+function linhaPessoaHtml(p) {
+  var html = '<tr class="linha-pessoa" onclick="toggleDetalhe(\'' + p.id + '\')">' +
+    '<td>' + p.nome + '</td>' +
+    '<td>' + CATEGORIA_LABEL[p.categoria] + '</td>' +
+    '<td>' + (p.cpf || '—') + '</td>' +
+    '<td><span class="badge ' + (p.ativo ? 'badge-ativo' : 'badge-inativo') + '">' + (p.ativo ? 'Ativo' : 'Inativo') + '</span></td>' +
+    '<td>' +
+      '<button class="btn-icon" onclick="event.stopPropagation();abrirEdicaoPessoa(\'' + p.id + '\')">Editar</button> ' +
+      '<button class="btn-icon" onclick="event.stopPropagation();alternarAtivo(\'' + p.id + '\',' + p.ativo + ')">' + (p.ativo ? 'Desativar' : 'Ativar') + '</button>' +
+    '</td>' +
+    '</tr>';
+  if (linhaExpandidaId === p.id) {
+    html += '<tr class="linha-detalhe"><td colspan="5">' + renderDetalhePessoa(p) + '</td></tr>';
+  }
+  return html;
 }
 
 function renderDetalhePessoa(p) {
@@ -291,6 +328,58 @@ function toggleDetalhe(id) {
 function alternarAtivo(id, ativoAtual) {
   supabaseClient.from('pessoas').update({ ativo: !ativoAtual }).eq('id', id).then(function (res) {
     if (res.error) { alert('Erro: ' + res.error.message); return; }
+    carregarPessoas();
+  });
+}
+
+function abrirEdicaoPessoa(id) {
+  var p = pessoasCache.find(function (x) { return x.id === id; });
+  if (!p) return;
+  var container = document.getElementById('modal-pessoa-container');
+  container.innerHTML =
+    '<div class="modal-overlay" onclick="if(event.target===this) fecharEdicaoPessoa()">' +
+      '<div class="modal-card">' +
+        '<button class="modal-fechar" onclick="fecharEdicaoPessoa()">&times;</button>' +
+        '<h3>Editar pessoa</h3>' +
+        '<div id="edicao-pessoa-erro"></div>' +
+        '<div class="form-field"><label>Nome</label><input id="ep-nome" type="text" value="' + p.nome.replace(/"/g, '&quot;') + '"></div>' +
+        '<div class="form-field"><label>Categoria</label><select id="ep-categoria">' +
+          '<option value="medico"' + (p.categoria === 'medico' ? ' selected' : '') + '>Médico</option>' +
+          '<option value="enfermeiro"' + (p.categoria === 'enfermeiro' ? ' selected' : '') + '>Enfermeiro</option>' +
+          '<option value="tecnico_enfermagem"' + (p.categoria === 'tecnico_enfermagem' ? ' selected' : '') + '>Técnico de Enfermagem</option>' +
+        '</select></div>' +
+        '<div class="form-field"><label>Conselho</label><input id="ep-conselho" type="text" value="' + (p.conselho || '') + '"></div>' +
+        '<div class="form-field"><label>CPF</label><input id="ep-cpf" type="text" value="' + (p.cpf || '') + '"></div>' +
+        '<div class="form-field"><label><input id="ep-ativo" type="checkbox" style="width:auto"' + (p.ativo ? ' checked' : '') + '> Ativo</label></div>' +
+        '<button class="btn-primario" onclick="salvarEdicaoPessoa(\'' + id + '\')">Salvar</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function fecharEdicaoPessoa() {
+  document.getElementById('modal-pessoa-container').innerHTML = '';
+}
+
+function salvarEdicaoPessoa(id) {
+  var nome = document.getElementById('ep-nome').value.trim();
+  var categoria = document.getElementById('ep-categoria').value;
+  var conselho = document.getElementById('ep-conselho').value.trim() || null;
+  var cpf = document.getElementById('ep-cpf').value.trim() || null;
+  var ativo = document.getElementById('ep-ativo').checked;
+
+  if (!nome) {
+    document.getElementById('edicao-pessoa-erro').innerHTML = '<p class="msg-erro">Informe o nome.</p>';
+    return;
+  }
+
+  supabaseClient.from('pessoas').update({
+    nome: nome, categoria: categoria, conselho: conselho, cpf: cpf, ativo: ativo
+  }).eq('id', id).then(function (res) {
+    if (res.error) {
+      document.getElementById('edicao-pessoa-erro').innerHTML = '<p class="msg-erro">Erro: ' + res.error.message + '</p>';
+      return;
+    }
+    fecharEdicaoPessoa();
     carregarPessoas();
   });
 }
