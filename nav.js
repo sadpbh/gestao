@@ -23,7 +23,9 @@ function renderNav(paginaAtiva) {
       { chave: 'ausencias', label: 'Ausências', href: 'ausencias.html' },
       { chave: 'escala', label: 'Escala', href: 'escala.html' }
     ],
-    pessoa: []
+    pessoa: [
+      { chave: 'minha_escala', label: 'Minha Escala', href: 'minha_escala.html' }
+    ]
   };
 
   var itens = itensPorPerfil[perfil] || [];
