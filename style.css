@@ -119,6 +119,15 @@ tr:last-child td { border-bottom: none; }
 }
 .msg-vazio { text-align: center; color: var(--texto-suave); font-size: 13px; padding: 30px 0; }
 
+.item-linha { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--borda); font-size: 13px; gap: 10px; }
+.item-linha:last-child { border-bottom: none; }
+.item-nome { font-weight: 600; }
+.item-sub { color: var(--texto-suave); font-size: 12px; }
+.tag-pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+.tag-urgente { background: var(--erro-bg); color: var(--erro-texto); }
+.tag-atencao { background: #fbf1d7; color: #a3831d; }
+.tag-ok { background: #eaf3ee; color: var(--verde-escuro); }
+
 /* ---------- Pessoas: linhas expansíveis ---------- */
 .linha-pessoa { cursor: pointer; }
 .linha-pessoa:hover { background: var(--bg); }
