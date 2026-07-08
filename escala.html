@@ -248,18 +248,18 @@ function renderGrade() {
       '<td class="col-fixa col-fixa3">' + l.pessoaNome + '</td>';
 
     diasDoMes.forEach(function (d) {
-      var ausencia = ausenciaPara(l.pessoaId, l.turno, d.iso);
       var fimDeSemana = (d.dow === 0 || d.dow === 6);
+      var ausencia = fimDeSemana ? null : ausenciaPara(l.pessoaId, l.turno, d.iso);
       var info, codigo, tituloTip;
 
-      if (ausencia) {
-        info = CODIGO_INFO[ausencia.motivo] || CODIGO_NORMAL;
-        codigo = info.codigo;
-        tituloTip = ausencia.motivo;
-      } else if (fimDeSemana) {
+      if (fimDeSemana) {
         info = { bg: '#e8eaed', cor: '#9aa2ad' };
         codigo = '';
         tituloTip = 'Fim de semana';
+      } else if (ausencia) {
+        info = CODIGO_INFO[ausencia.motivo] || CODIGO_NORMAL;
+        codigo = info.codigo;
+        tituloTip = ausencia.motivo;
       } else {
         info = CODIGO_NORMAL;
         codigo = 'C';
@@ -289,7 +289,9 @@ var buscaPessoaModalCache = [];
 
 function abrirModalDia(equipeId, turno, dataIso, pessoaIdTitular) {
   var linha = linhasGrade.find(function (l) { return l.equipeId === equipeId && l.turno === turno && l.pessoaId === pessoaIdTitular; });
-  var ausencia = ausenciaPara(pessoaIdTitular, turno, dataIso);
+  var dataObj = new Date(dataIso + 'T00:00:00');
+  var fimDeSemana = (dataObj.getDay() === 0 || dataObj.getDay() === 6);
+  var ausencia = fimDeSemana ? null : ausenciaPara(pessoaIdTitular, turno, dataIso);
   var coberturas = ausencia ? alocacoesPara(equipeId, turno, dataIso) : [];
   var turnoLabel = turno === 'MANHA' ? 'Manhã' : turno === 'INTER' ? 'Intermediário' : 'Tarde';
 
