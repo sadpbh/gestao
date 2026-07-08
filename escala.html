@@ -384,6 +384,7 @@ function salvarEdicaoCobertura(coberturaId, equipeId, turno, dataIso) {
     fecharModalDia();
   });
 }
+function renderFormNovaCobertura(equipeId, turno, dataIso, ausencia) {
   var extraPermitido = MOTIVOS_PERMITEM_EXTRA.indexOf(ausencia.motivo) !== -1;
   return '<hr class="divisor">' +
     '<h4 style="font-size:13px;margin-bottom:8px">Adicionar cobertura</h4>' +
