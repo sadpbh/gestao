@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minha Escala · Cobertura de Escalas · SAD BH</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="supabase-client.js"></script>
+<script src="auth.js"></script>
+<script src="nav.js"></script>
+<style>
+  .semana-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+  .dia-card { background: #fff; border: 1px solid var(--borda); border-radius: 10px; padding: 12px; min-height: 100px; }
+  .dia-card.hoje { border-color: var(--verde); box-shadow: 0 0 0 1px var(--verde); }
+  .dia-card .cab { font-size: 11px; color: var(--texto-suave); margin-bottom: 6px; }
+  .dia-card .num { font-size: 16px; font-weight: 700; }
+  .aloc-item { font-size: 11px; background: #eaf3ee; color: var(--verde-escuro); border-radius: 6px; padding: 4px 6px; margin-top: 6px; }
+  .aloc-vazio { font-size: 11px; color: var(--texto-suave); margin-top: 6px; }
+  .nav-semana { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .nav-semana button { background: var(--bg); border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; font-family: inherit; }
+  .mes-lista .item-linha { cursor: default; }
+  @media (max-width: 800px) { .semana-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>Minha Escala</h1>
+    <div class="sub">Cobertura de Escalas &middot; SAD BH</div>
+  </div>
+  <div id="nav-menu"></div>
+  <div class="topbar-user">
+    <span id="user-label"></span>
+    <button class="btn-sair" onclick="authLogout()">Sair</button>
+  </div>
+</div>
+
+<div class="container" id="app" style="display:none">
+
+  <div class="card" id="card-restrito" style="display:none">
+    <p class="msg-erro">Esta tela é só para o seu próprio acesso (perfil pessoa).</p>
+  </div>
+
+  <div id="conteudo" style="display:none">
+
+    <div class="card" id="card-lotacao">
+      <h2>Minha lotação</h2>
+      <div id="info-lotacao"></div>
+    </div>
+
+    <div class="card">
+      <div class="form-row" style="align-items:center;margin-bottom:16px">
+        <div class="form-field" style="max-width:200px">
+          <label>Visualização</label>
+          <select id="f-visao">
+            <option value="semana">Semana</option>
+            <option value="mes">Mês</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="bloco-semana">
+        <div class="nav-semana">
+          <button onclick="mudarSemana(-1)">&larr; Semana anterior</button>
+          <strong id="rotulo-semana"></strong>
+          <button onclick="mudarSemana(1)">Próxima semana &rarr;</button>
+        </div>
+        <div class="semana-grid" id="semana-grid"></div>
+      </div>
+
+      <div id="bloco-mes" style="display:none">
+        <div class="nav-semana">
+          <button onclick="mudarMes(-1)">&larr; Mês anterior</button>
+          <strong id="rotulo-mes"></strong>
+          <button onclick="mudarMes(1)">Próximo mês &rarr;</button>
+        </div>
+        <div id="mes-lista" class="mes-lista"></div>
+        <div id="mes-vazio" class="msg-vazio" style="display:none">Nenhuma alocação neste mês.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+var DIAS_SEMANA_NOME = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+var referenciaSemana = new Date();
+var referenciaMes = new Date();
+
+function initTela() {
+  document.getElementById('app').style.display = 'block';
+  var acesso = window.meuAcesso;
+  var rotulo = acesso.equipe_nome || acesso.pessoa_nome || acesso.email;
+  document.getElementById('user-label').textContent = rotulo + ' (' + acesso.perfil + ')';
+  renderNav('minha_escala');
+
+  if (acesso.perfil !== 'pessoa') {
+    document.getElementById('card-restrito').style.display = 'block';
+    return;
+  }
+  document.getElementById('conteudo').style.display = 'block';
+
+  document.getElementById('f-visao').addEventListener('change', function () {
+    var mes = this.value === 'mes';
+    document.getElementById('bloco-semana').style.display = mes ? 'none' : 'block';
+    document.getElementById('bloco-mes').style.display = mes ? 'block' : 'none';
+    if (mes) carregarMes();
+  });
+
+  carregarMinhaLotacao();
+  carregarSemana();
+}
+
+function isoData(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function carregarMinhaLotacao() {
+  var pessoaId = window.meuAcesso.pessoa_id;
+  supabaseClient
+    .from('contratos')
+    .select('bm_m, tipo_contrato, lotacoes(equipe_id, turno, horario_trabalho, dias_semana, equipes(nome))')
+    .eq('pessoa_id', pessoaId)
+    .eq('ativo', true)
+    .then(function (res) {
+      if (res.error || !res.data || res.data.length === 0) {
+        document.getElementById('info-lotacao').innerHTML = '<p class="msg-vazio">Nenhuma lotação ativa encontrada.</p>';
+        return;
+      }
+      var html = '';
+      res.data.forEach(function (c) {
+        (c.lotacoes || []).forEach(function (l) {
+          var turnoLabel = l.turno === 'MANHA' ? 'Manhã' : l.turno === 'INTER' ? 'Intermediário' : l.turno === 'TARDE' ? 'Tarde' : 'Flexível';
+          html += '<div class="item-linha"><span class="item-nome">' + (l.equipes ? l.equipes.nome : 'Ferista (sem equipe fixa)') + '</span>' +
+            '<span class="item-sub">' + turnoLabel + (l.horario_trabalho ? ' · ' + l.horario_trabalho : '') + '</span></div>';
+        });
+      });
+      document.getElementById('info-lotacao').innerHTML = html || '<p class="msg-vazio">Nenhuma lotação ativa encontrada.</p>';
+    });
+}
+
+// ---------------- SEMANA ----------------
+function inicioDaSemana(d) {
+  var copia = new Date(d);
+  var diaSemana = copia.getDay();
+  copia.setDate(copia.getDate() - diaSemana);
+  copia.setHours(0, 0, 0, 0);
+  return copia;
+}
+
+function mudarSemana(delta) {
+  referenciaSemana.setDate(referenciaSemana.getDate() + delta * 7);
+  carregarSemana();
+}
+
+function carregarSemana() {
+  var inicio = inicioDaSemana(referenciaSemana);
+  var dias = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(inicio);
+    d.setDate(d.getDate() + i);
+    dias.push(d);
+  }
+  var iniIso = isoData(dias[0]);
+  var fimIso = isoData(dias[6]);
+  document.getElementById('rotulo-semana').textContent =
+    dias[0].toLocaleDateString('pt-BR') + ' – ' + dias[6].toLocaleDateString('pt-BR');
+
+  var pessoaId = window.meuAcesso.pessoa_id;
+  supabaseClient
+    .from('alocacoes')
+    .select('data, turno, tipo, equipes(nome)')
+    .eq('pessoa_id', pessoaId)
+    .gte('data', iniIso)
+    .lte('data', fimIso)
+    .then(function (res) {
+      var alocacoes = res.data || [];
+      var hojeIso = isoData(new Date());
+
+      document.getElementById('semana-grid').innerHTML = dias.map(function (d) {
+        var diaIso = isoData(d);
+        var doDia = alocacoes.filter(function (a) { return a.data === diaIso; });
+        var itensHtml = doDia.length
+          ? doDia.map(function (a) {
+              var turnoLabel = a.turno === 'MANHA' ? 'Manhã' : a.turno === 'INTER' ? 'Inter' : 'Tarde';
+              var tipoLabel = a.tipo === 'cobertura_ferista' ? 'Ferista' : a.tipo === 'cobertura_extra' ? 'Extra' : 'Compensação';
+              return '<div class="aloc-item">' + (a.equipes ? a.equipes.nome : '—') + ' · ' + turnoLabel + ' · ' + tipoLabel + '</div>';
+            }).join('')
+          : '<div class="aloc-vazio">Sem alocação</div>';
+
+        return '<div class="dia-card' + (diaIso === hojeIso ? ' hoje' : '') + '">' +
+          '<div class="cab">' + DIAS_SEMANA_NOME[d.getDay()] + '</div>' +
+          '<div class="num">' + d.getDate() + '</div>' +
+          itensHtml +
+          '</div>';
+      }).join('');
+    });
+}
+
+// ---------------- MÊS ----------------
+function mudarMes(delta) {
+  referenciaMes.setMonth(referenciaMes.getMonth() + delta);
+  carregarMes();
+}
+
+function carregarMes() {
+  var ano = referenciaMes.getFullYear();
+  var mes = referenciaMes.getMonth();
+  var inicio = new Date(ano, mes, 1);
+  var fim = new Date(ano, mes + 1, 0);
+  var iniIso = isoData(inicio);
+  var fimIso = isoData(fim);
+
+  document.getElementById('rotulo-mes').textContent =
+    inicio.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  var pessoaId = window.meuAcesso.pessoa_id;
+  supabaseClient
+    .from('alocacoes')
+    .select('data, turno, tipo, equipes(nome)')
+    .eq('pessoa_id', pessoaId)
+    .gte('data', iniIso)
+    .lte('data', fimIso)
+    .order('data')
+    .then(function (res) {
+      var alocacoes = res.data || [];
+      var lista = document.getElementById('mes-lista');
+      var vazio = document.getElementById('mes-vazio');
+
+      if (alocacoes.length === 0) {
+        lista.innerHTML = '';
+        vazio.style.display = 'block';
+        return;
+      }
+      vazio.style.display = 'none';
+
+      lista.innerHTML = alocacoes.map(function (a) {
+        var turnoLabel = a.turno === 'MANHA' ? 'Manhã' : a.turno === 'INTER' ? 'Intermediário' : 'Tarde';
+        var tipoLabel = a.tipo === 'cobertura_ferista' ? 'Ferista' : a.tipo === 'cobertura_extra' ? 'Extra' : 'Compensação';
+        return '<div class="item-linha">' +
+          '<span class="item-nome">' + a.data.split('-').reverse().join('/') + '</span>' +
+          '<span class="item-sub">' + (a.equipes ? a.equipes.nome : '—') + ' · ' + turnoLabel + '</span>' +
+          '<span class="tag-pill tag-ok">' + tipoLabel + '</span>' +
+          '</div>';
+      }).join('');
+    });
+}
+
+authReady(initTela);
+</script>
+</body>
+</html>
