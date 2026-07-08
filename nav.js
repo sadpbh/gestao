@@ -19,11 +19,13 @@ function renderNav(paginaAtiva) {
       { chave: 'pessoas', label: 'Pessoas', href: 'pessoas.html' },
       { chave: 'ausencias', label: 'Ausências', href: 'ausencias.html' },
       { chave: 'escala', label: 'Escala', href: 'escala.html' },
+      { chave: 'ferias', label: 'Férias', href: 'ferias.html' },
       { chave: 'ocorrencias', label: 'Ocorrências', href: 'ocorrencias.html' }
     ],
     equipe: [
       { chave: 'ausencias', label: 'Ausências', href: 'ausencias.html' },
-      { chave: 'escala', label: 'Escala', href: 'escala.html' }
+      { chave: 'escala', label: 'Escala', href: 'escala.html' },
+      { chave: 'ferias', label: 'Férias', href: 'ferias.html' }
     ],
     pessoa: [
       { chave: 'minha_escala', label: 'Minha Escala', href: 'minha_escala.html' }
