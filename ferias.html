@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Férias · Cobertura de Escalas · SAD BH</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="supabase-client.js"></script>
+<script src="auth.js"></script>
+<script src="nav.js"></script>
+<script src="ferias-logic.js"></script>
+<style>
+  .busca-wrap { position: relative; }
+  .busca-sugestoes {
+    position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--borda);
+    border-radius: 8px; margin-top: 4px; max-height: 220px; overflow-y: auto; z-index: 20;
+    box-shadow: 0 8px 24px rgba(0,0,0,.08);
+  }
+  .busca-sugestao-item { padding: 9px 14px; font-size: 13px; cursor: pointer; }
+  .busca-sugestao-item:hover { background: var(--bg); }
+  .pessoa-selecionada { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #c8f4da; border-radius: 8px; font-size: 14px; margin-bottom: 4px; }
+  .pessoa-selecionada button { margin-left: auto; }
+  .saldo-preview { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
+  .saldo-box { background: var(--bg); border-radius: 10px; padding: 12px 16px; text-align: center; min-width: 110px; }
+  .saldo-box .num { font-size: 22px; font-weight: 700; color: var(--verde-escuro); }
+  .saldo-box .num.negativo { color: var(--erro-texto); }
+  .saldo-box .label { font-size: 11px; color: var(--texto-suave); }
+  .badge-pendente { background: #fbf1d7; color: #8a6d10; }
+  .badge-aprovado { background: #c8f4da; color: var(--verde-escuro); }
+  .badge-rejeitado { background: var(--erro-bg); color: var(--erro-texto); }
+  .aviso-info { font-size: 12px; color: var(--texto-suave); margin: 6px 0 12px; background: var(--bg); padding: 8px 12px; border-radius: 8px; }
+  @media print {
+    .topbar, #nav-menu, .btn-sair, #card-solicitar, .btn-icon, .btn-primario, .btn-secundario, .form-row, #filtros-relatorio { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>Férias</h1>
+    <div class="sub">Cobertura de Escalas &middot; SAD BH</div>
+  </div>
+  <div id="nav-menu"></div>
+  <div class="topbar-user">
+    <span id="user-label"></span>
+    <button class="btn-sair" onclick="authLogout()">Sair</button>
+  </div>
+</div>
+
+<div class="container" id="app" style="display:none">
+
+  <div class="card" id="card-restrito" style="display:none">
+    <p class="msg-erro">Esta tela não está disponível para o seu perfil.</p>
+  </div>
+
+  <div id="conteudo" style="display:none">
+
+    <div class="card" id="card-solicitar">
+      <h2>Solicitar férias</h2>
+      <div id="form-erro"></div>
+
+      <div class="form-field busca-wrap">
+        <label>Pessoa</label>
+        <div id="pessoa-selecionada-area"></div>
+        <input id="busca-pessoa" type="text" placeholder="Digite o nome..." autocomplete="off">
+        <div id="busca-sugestoes" class="busca-sugestoes" style="display:none"></div>
+      </div>
+
+      <div id="saldo-area"></div>
+
+      <div class="form-row">
+        <div class="form-field">
+          <label>Tipo de férias</label>
+          <select id="fr-tipo">
+            <option value="regulamentar">Regulamentares</option>
+            <option value="premio">Prêmio</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Data início</label>
+          <input id="fr-inicio" type="date">
+        </div>
+        <div class="form-field">
+          <label>Data fim</label>
+          <input id="fr-fim" type="date">
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Observações</label>
+        <input id="fr-obs" type="text">
+      </div>
+
+      <div style="margin-top:16px">
+        <button class="btn-primario" onclick="solicitarFerias()">Enviar solicitação</button>
+      </div>
+    </div>
+
+    <div class="card" id="card-pendentes" style="display:none">
+      <h2>Pendentes de avaliação (<span id="contador-pendentes">0</span>)</h2>
+      <div id="lista-pendentes"></div>
+      <div id="pendentes-vazio" class="msg-vazio" style="display:none">Nenhuma solicitação pendente.</div>
+    </div>
+
+    <div class="card">
+      <div class="form-row" id="filtros-relatorio" style="align-items:end;margin-bottom:16px">
+        <div class="form-field">
+          <label>Equipe</label>
+          <select id="filtro-equipe" onchange="renderHistorico()">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Status</label>
+          <select id="filtro-status" onchange="renderHistorico()">
+            <option value="">Todos</option>
+            <option value="pendente">Pendente</option>
+            <option value="aprovado">Aprovado</option>
+            <option value="rejeitado">Rejeitado</option>
+          </select>
+        </div>
+        <button class="btn-secundario" onclick="window.print()">Imprimir relatório</button>
+      </div>
+      <h2>Solicitações (<span id="contador-historico">0</span>)</h2>
+      <table>
+        <thead><tr><th>Pessoa</th><th>Equipe</th><th>Tipo</th><th>Período</th><th>Status</th><th></th></tr></thead>
+        <tbody id="historico-body"></tbody>
+      </table>
+      <div id="historico-vazio" class="msg-vazio" style="display:none">Nenhuma solicitação encontrada.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+var pessoasCache = [];
+var equipesCache = [];
+var solicitacoesCache = [];
+var pessoaSelecionada = null;
+var contratoAtivoSelecionado = null;
+var souGestor = false;
+
+function initTela() {
+  document.getElementById('app').style.display = 'block';
+  var acesso = window.meuAcesso;
+  var rotulo = acesso.equipe_nome || acesso.pessoa_nome || acesso.email;
+  document.getElementById('user-label').textContent = rotulo + ' (' + acesso.perfil + ')';
+  renderNav('ferias');
+
+  if (acesso.perfil === 'pessoa') {
+    document.getElementById('card-restrito').style.display = 'block';
+    return;
+  }
+  document.getElementById('conteudo').style.display = 'block';
+  souGestor = acesso.perfil === 'gestor';
+  if (souGestor) document.getElementById('card-pendentes').style.display = 'block';
+
+  document.getElementById('busca-pessoa').addEventListener('input', onBuscaPessoaInput);
+  document.getElementById('fr-tipo').addEventListener('change', atualizarSaldoPreview);
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('.busca-wrap')) document.getElementById('busca-sugestoes').style.display = 'none';
+  });
+
+  Promise.all([carregarPessoas(), carregarEquipes()]).then(carregarSolicitacoes);
+}
+
+function carregarPessoas() {
+  return supabaseClient
+    .from('pessoas')
+    .select('id, nome, categoria, ativo, contratos(id, tipo_contrato, ativo, data_inicio_contrato, lotacoes(equipe_id, turno, equipes(nome)))')
+    .eq('ativo', true)
+    .order('nome')
+    .then(function (res) { pessoasCache = res.data || []; });
+}
+
+function carregarEquipes() {
+  return supabaseClient.from('equipes').select('id, nome').order('nome').then(function (res) {
+    equipesCache = res.data || [];
+    document.getElementById('filtro-equipe').innerHTML = '<option value="">Todas</option>' +
+      equipesCache.map(function (e) { return '<option value="' + e.id + '">' + e.nome + '</option>'; }).join('');
+  });
+}
+
+function onBuscaPessoaInput() {
+  var termo = document.getElementById('busca-pessoa').value.trim().toLowerCase();
+  var sugestoesEl = document.getElementById('busca-sugestoes');
+  if (!termo) { sugestoesEl.style.display = 'none'; return; }
+  var resultados = pessoasCache.filter(function (p) { return p.nome.toLowerCase().indexOf(termo) !== -1; }).slice(0, 8);
+  sugestoesEl.innerHTML = (resultados.length ? resultados.map(function (p) {
+    return '<div class="busca-sugestao-item" onclick="selecionarPessoa(\'' + p.id + '\')">' + p.nome + '</div>';
+  }).join('') : '<div class="busca-sugestao-item">Nenhuma pessoa encontrada</div>');
+  sugestoesEl.style.display = 'block';
+}
+
+function equipeDaPessoa(p) {
+  for (var i = 0; i < (p.contratos || []).length; i++) {
+    var lots = p.contratos[i].lotacoes || [];
+    for (var j = 0; j < lots.length; j++) {
+      if (lots[j].equipe_id) return lots[j].equipe_id;
+    }
+  }
+  return null;
+}
+
+function selecionarPessoa(id) {
+  pessoaSelecionada = pessoasCache.find(function (p) { return p.id === id; });
+  document.getElementById('busca-sugestoes').style.display = 'none';
+  document.getElementById('busca-pessoa').value = '';
+  document.getElementById('busca-pessoa').style.display = 'none';
+  document.getElementById('pessoa-selecionada-area').innerHTML =
+    '<div class="pessoa-selecionada">' + pessoaSelecionada.nome +
+    '<button class="btn-icon" onclick="limparPessoaSelecionada()">trocar</button></div>';
+
+  contratoAtivoSelecionado = (pessoaSelecionada.contratos || []).find(function (c) { return c.ativo; }) || null;
+
+  var selTipo = document.getElementById('fr-tipo');
+  var opPremio = selTipo.querySelector('option[value="premio"]');
+  var ehEfetivo = contratoAtivoSelecionado && contratoAtivoSelecionado.tipo_contrato === 'efetivo';
+  opPremio.disabled = !ehEfetivo;
+  if (!ehEfetivo) selTipo.value = 'regulamentar';
+
+  atualizarSaldoPreview();
+}
+
+function limparPessoaSelecionada() {
+  pessoaSelecionada = null;
+  contratoAtivoSelecionado = null;
+  document.getElementById('pessoa-selecionada-area').innerHTML = '';
+  document.getElementById('busca-pessoa').style.display = 'block';
+  document.getElementById('busca-pessoa').value = '';
+  document.getElementById('saldo-area').innerHTML = '';
+}
+
+function atualizarSaldoPreview() {
+  var area = document.getElementById('saldo-area');
+  if (!pessoaSelecionada || !contratoAtivoSelecionado || !contratoAtivoSelecionado.data_inicio_contrato) {
+    area.innerHTML = pessoaSelecionada ? '<p class="aviso-info">Sem data de início de contrato cadastrada — não é possível calcular o saldo.</p>' : '';
+    return;
+  }
+
+  var pessoaId = pessoaSelecionada.id;
+  Promise.all([
+    supabaseClient.from('ausencias').select('motivo, dias').eq('pessoa_id', pessoaId),
+    supabaseClient.from('solicitacoes_ferias').select('tipo_ferias, data_inicio, data_fim, status').eq('pessoa_id', pessoaId).in('status', ['pendente', 'aprovado'])
+  ]).then(function (results) {
+    var ausencias = results[0].data || [];
+    var solicitacoes = results[1].data || [];
+
+    var registros = [];
+    ausencias.forEach(function (a) {
+      if (!a.dias || a.dias.length === 0) return;
+      registros.push({ motivo: a.motivo, data_inicio: a.dias[0], data_fim: a.dias[a.dias.length - 1] });
+    });
+    solicitacoes.forEach(function (s) {
+      registros.push({ motivo: s.tipo_ferias === 'premio' ? 'Férias Prêmio' : 'Férias Regulamentares', data_inicio: s.data_inicio, data_fim: s.data_fim });
+    });
+
+    var tipo = contratoAtivoSelecionado.tipo_contrato;
+    var inicio = contratoAtivoSelecionado.data_inicio_contrato;
+    var reg = calcularSaldoRegulamentar(tipo, inicio, registros);
+    var premio = calcularSaldoPremio(tipo, inicio, registros);
+
+    var html = '<div class="saldo-preview">';
+    if (reg) {
+      html += '<div class="saldo-box"><div class="num' + (reg.saldo < 0 ? ' negativo' : '') + '">' + reg.saldo + '</div><div class="label">Saldo regulamentar (' + reg.unidade + ')</div></div>';
+    }
+    if (premio) {
+      html += '<div class="saldo-box"><div class="num' + (premio.saldo < 0 ? ' negativo' : '') + '">' + premio.saldo + '</div><div class="label">Saldo prêmio (dias corridos)</div></div>';
+    }
+    html += '</div>';
+    area.innerHTML = html;
+  });
+}
+
+function solicitarFerias() {
+  var erroEl = document.getElementById('form-erro');
+  erroEl.innerHTML = '';
+
+  if (!pessoaSelecionada) { erroEl.innerHTML = '<p class="msg-erro">Selecione uma pessoa.</p>'; return; }
+  var tipoFerias = document.getElementById('fr-tipo').value;
+  var inicio = document.getElementById('fr-inicio').value;
+  var fim = document.getElementById('fr-fim').value;
+  var obs = document.getElementById('fr-obs').value.trim() || null;
+
+  if (!inicio || !fim) { erroEl.innerHTML = '<p class="msg-erro">Informe início e fim.</p>'; return; }
+  if (fim < inicio) { erroEl.innerHTML = '<p class="msg-erro">Data fim não pode ser antes da data início.</p>'; return; }
+
+  var equipeId = equipeDaPessoa(pessoaSelecionada);
+  if (!equipeId) { erroEl.innerHTML = '<p class="msg-erro">Esta pessoa não tem equipe cadastrada.</p>'; return; }
+
+  erroEl.innerHTML = '<p style="color:var(--texto-suave);font-size:13px">Verificando conflitos...</p>';
+
+  supabaseClient.rpc('fn_verificar_conflito_ferias', {
+    p_pessoa_id: pessoaSelecionada.id, p_data_inicio: inicio, p_data_fim: fim, p_tipo_ferias: tipoFerias
+  }).then(function (res) {
+    if (res.error) { erroEl.innerHTML = '<p class="msg-erro">Erro ao verificar conflito: ' + res.error.message + '</p>'; return; }
+    var resultado = res.data && res.data[0];
+    if (resultado && resultado.conflita) {
+      erroEl.innerHTML = '<p class="msg-erro">Solicitação bloqueada — ' + resultado.mensagem + '</p>';
+      return;
+    }
+
+    supabaseClient.from('solicitacoes_ferias').insert({
+      pessoa_id: pessoaSelecionada.id, equipe_id: equipeId, tipo_ferias: tipoFerias,
+      data_inicio: inicio, data_fim: fim, status: 'pendente',
+      solicitado_por: window.meuAcesso.email, observacoes: obs
+    }).then(function (res2) {
+      if (res2.error) { erroEl.innerHTML = '<p class="msg-erro">Erro ao enviar: ' + res2.error.message + '</p>'; return; }
+      erroEl.innerHTML = '<p style="color:var(--verde-escuro);font-size:13px">Solicitação enviada! Aguardando avaliação do gestor.</p>';
+      limparPessoaSelecionada();
+      document.getElementById('fr-inicio').value = '';
+      document.getElementById('fr-fim').value = '';
+      document.getElementById('fr-obs').value = '';
+      carregarSolicitacoes();
+    });
+  });
+}
+
+function carregarSolicitacoes() {
+  supabaseClient
+    .from('solicitacoes_ferias')
+    .select('id, pessoa_id, equipe_id, tipo_ferias, data_inicio, data_fim, status, solicitado_por, avaliado_por, motivo_rejeicao, observacoes, created_at, pessoas(nome), equipes(nome)')
+    .order('created_at', { ascending: false })
+    .then(function (res) {
+      if (res.error) {
+        document.getElementById('form-erro').innerHTML = '<p class="msg-erro">Erro ao carregar: ' + res.error.message + '</p>';
+        return;
+      }
+      solicitacoesCache = res.data || [];
+      renderPendentes();
+      renderHistorico();
+    });
+}
+
+function renderPendentes() {
+  if (!souGestor) return;
+  var pendentes = solicitacoesCache.filter(function (s) { return s.status === 'pendente'; });
+  document.getElementById('contador-pendentes').textContent = pendentes.length;
+  var vazio = document.getElementById('pendentes-vazio');
+
+  if (pendentes.length === 0) {
+    document.getElementById('lista-pendentes').innerHTML = '';
+    vazio.style.display = 'block';
+    return;
+  }
+  vazio.style.display = 'none';
+
+  document.getElementById('lista-pendentes').innerHTML = pendentes.map(function (s) {
+    return '<div class="item-linha">' +
+      '<span><span class="item-nome">' + (s.pessoas ? s.pessoas.nome : '—') + '</span> ' +
+      '<span class="item-sub">' + (s.equipes ? s.equipes.nome : '—') + ' &middot; ' + (s.tipo_ferias === 'premio' ? 'Prêmio' : 'Regulamentares') + ' &middot; ' +
+      s.data_inicio.split('-').reverse().join('/') + ' a ' + s.data_fim.split('-').reverse().join('/') + '</span></span>' +
+      '<span>' +
+        '<button class="btn-icon" onclick="avaliarSolicitacao(\'' + s.id + '\',\'aprovado\')">Aprovar</button> ' +
+        '<button class="btn-icon excluir" onclick="rejeitarSolicitacao(\'' + s.id + '\')">Rejeitar</button>' +
+      '</span></div>';
+  }).join('');
+}
+
+function avaliarSolicitacao(id, status) {
+  supabaseClient.from('solicitacoes_ferias').update({
+    status: status, avaliado_por: window.meuAcesso.email, data_avaliacao: new Date().toISOString()
+  }).eq('id', id).then(function (res) {
+    if (res.error) { alert('Erro: ' + res.error.message); return; }
+    carregarSolicitacoes();
+  });
+}
+
+function rejeitarSolicitacao(id) {
+  var motivo = prompt('Motivo da rejeição:');
+  if (motivo === null) return;
+  supabaseClient.from('solicitacoes_ferias').update({
+    status: 'rejeitado', avaliado_por: window.meuAcesso.email, data_avaliacao: new Date().toISOString(), motivo_rejeicao: motivo
+  }).eq('id', id).then(function (res) {
+    if (res.error) { alert('Erro: ' + res.error.message); return; }
+    carregarSolicitacoes();
+  });
+}
+
+function renderHistorico() {
+  var equipeFiltro = document.getElementById('filtro-equipe').value;
+  var statusFiltro = document.getElementById('filtro-status').value;
+
+  var lista = solicitacoesCache.filter(function (s) {
+    return (!equipeFiltro || s.equipe_id === equipeFiltro) && (!statusFiltro || s.status === statusFiltro);
+  });
+
+  document.getElementById('contador-historico').textContent = lista.length;
+  var body = document.getElementById('historico-body');
+  var vazio = document.getElementById('historico-vazio');
+
+  if (lista.length === 0) {
+    body.innerHTML = '';
+    vazio.style.display = 'block';
+    return;
+  }
+  vazio.style.display = 'none';
+
+  body.innerHTML = lista.map(function (s) {
+    var acao = souGestor && s.status === 'pendente'
+      ? '<button class="btn-icon" onclick="avaliarSolicitacao(\'' + s.id + '\',\'aprovado\')">Aprovar</button> <button class="btn-icon excluir" onclick="rejeitarSolicitacao(\'' + s.id + '\')">Rejeitar</button>'
+      : (s.status === 'rejeitado' && s.motivo_rejeicao ? '<span class="item-sub">' + s.motivo_rejeicao + '</span>' : '');
+    return '<tr>' +
+      '<td>' + (s.pessoas ? s.pessoas.nome : '—') + '</td>' +
+      '<td>' + (s.equipes ? s.equipes.nome : '—') + '</td>' +
+      '<td>' + (s.tipo_ferias === 'premio' ? 'Prêmio' : 'Regulamentares') + '</td>' +
+      '<td>' + s.data_inicio.split('-').reverse().join('/') + ' a ' + s.data_fim.split('-').reverse().join('/') + '</td>' +
+      '<td><span class="badge badge-' + s.status + '">' + s.status + '</span></td>' +
+      '<td>' + acao + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+authReady(initTela);
+</script>
+</body>
+</html>
