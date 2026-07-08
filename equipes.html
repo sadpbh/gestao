@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Equipes · Cobertura de Escalas · SAD BH</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="supabase-client.js"></script>
+<script src="auth.js"></script>
+<script src="nav.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>Equipes</h1>
+    <div class="sub">Cobertura de Escalas &middot; SAD BH</div>
+  </div>
+  <div id="nav-menu"></div>
+  <div class="topbar-user">
+    <span id="user-label"></span>
+    <button class="btn-sair" onclick="authLogout()">Sair</button>
+  </div>
+</div>
+
+<div class="container" id="app" style="display:none">
+
+  <div class="card" id="card-restrito" style="display:none">
+    <p class="msg-erro">Esta tela é restrita ao perfil gestor.</p>
+  </div>
+
+  <div id="conteudo" style="display:none">
+
+    <div class="card">
+      <h2 id="titulo-form">Nova equipe</h2>
+      <div id="form-erro"></div>
+      <div class="form-row">
+        <div class="form-field" style="flex:2">
+          <label>Nome</label>
+          <input id="eq-nome" type="text" placeholder="EMAD Barreiro 1">
+        </div>
+        <div class="form-field">
+          <label>Tipo</label>
+          <select id="eq-tipo">
+            <option value="EMAD">EMAD</option>
+            <option value="EMAP">EMAP</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Equipe irmã</label>
+          <select id="eq-irma">
+            <option value="">Nenhuma</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Regional</label>
+          <input id="eq-regional" type="text">
+        </div>
+        <div class="form-field">
+          <label>Local da base</label>
+          <input id="eq-local" type="text">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Telefone</label>
+          <input id="eq-telefone" type="text">
+        </div>
+        <div class="form-field">
+          <label>E-mail</label>
+          <input id="eq-email" type="email">
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button class="btn-primario" id="btn-salvar" onclick="salvarEquipe()">Salvar equipe</button>
+        <button class="btn-secundario" id="btn-cancelar" style="display:none" onclick="cancelarEdicao()">Cancelar edição</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Equipes cadastradas (<span id="contador">0</span>)</h2>
+      <table>
+        <thead>
+          <tr><th>Nome</th><th>Tipo</th><th>Irmã</th><th>Regional</th><th>Local</th><th></th></tr>
+        </thead>
+        <tbody id="tabela-body"></tbody>
+      </table>
+      <div id="tabela-vazio" class="msg-vazio" style="display:none">Nenhuma equipe cadastrada.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+var equipesCache = [];
+var idEmEdicao = null;
+
+function initTela() {
+  document.getElementById('app').style.display = 'block';
+  var acesso = window.meuAcesso;
+  var rotulo = acesso.equipe_nome || acesso.pessoa_nome || acesso.email;
+  document.getElementById('user-label').textContent = rotulo + ' (' + acesso.perfil + ')';
+  renderNav('equipes');
+
+  if (acesso.perfil !== 'gestor') {
+    document.getElementById('card-restrito').style.display = 'block';
+    return;
+  }
+  document.getElementById('conteudo').style.display = 'block';
+
+  carregarEquipes();
+}
+
+function carregarEquipes() {
+  supabaseClient
+    .from('equipes')
+    .select('id, nome, tipo, regional, local_base, telefone, email, equipe_irma_id')
+    .order('nome')
+    .then(function (res) {
+      if (res.error) {
+        document.getElementById('form-erro').innerHTML = '<p class="msg-erro">Erro ao carregar: ' + res.error.message + '</p>';
+        return;
+      }
+      equipesCache = res.data || [];
+      atualizarSelectIrma();
+      renderTabela();
+    });
+}
+
+function atualizarSelectIrma() {
+  var sel = document.getElementById('eq-irma');
+  sel.innerHTML = '<option value="">Nenhuma</option>' +
+    equipesCache
+      .filter(function (e) { return e.id !== idEmEdicao; })
+      .map(function (e) { return '<option value="' + e.id + '">' + e.nome + '</option>'; })
+      .join('');
+}
+
+function renderTabela() {
+  document.getElementById('contador').textContent = equipesCache.length;
+  var body = document.getElementById('tabela-body');
+  var vazio = document.getElementById('tabela-vazio');
+
+  if (equipesCache.length === 0) {
+    body.innerHTML = '';
+    vazio.style.display = 'block';
+    return;
+  }
+  vazio.style.display = 'none';
+
+  body.innerHTML = equipesCache.map(function (e) {
+    var irma = equipesCache.find(function (x) { return x.id === e.equipe_irma_id; });
+    return '<tr>' +
+      '<td>' + e.nome + '</td>' +
+      '<td><span class="badge ' + (e.tipo === 'EMAD' ? 'badge-equipe' : 'badge-pessoa') + '">' + e.tipo + '</span></td>' +
+      '<td>' + (irma ? irma.nome : '—') + '</td>' +
+      '<td>' + (e.regional || '—') + '</td>' +
+      '<td>' + (e.local_base || '—') + '</td>' +
+      '<td>' +
+        '<button class="btn-icon" onclick="iniciarEdicao(\'' + e.id + '\')">Editar</button> ' +
+        '<button class="btn-icon excluir" onclick="excluirEquipe(\'' + e.id + '\')">Excluir</button>' +
+      '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function salvarEquipe() {
+  var erroEl = document.getElementById('form-erro');
+  erroEl.innerHTML = '';
+
+  var nome = document.getElementById('eq-nome').value.trim();
+  if (!nome) { erroEl.innerHTML = '<p class="msg-erro">Informe o nome.</p>'; return; }
+
+  var payload = {
+    nome: nome,
+    tipo: document.getElementById('eq-tipo').value,
+    equipe_irma_id: document.getElementById('eq-irma').value || null,
+    regional: document.getElementById('eq-regional').value.trim() || null,
+    local_base: document.getElementById('eq-local').value.trim() || null,
+    telefone: document.getElementById('eq-telefone').value.trim() || null,
+    email: document.getElementById('eq-email').value.trim() || null
+  };
+
+  var query = idEmEdicao
+    ? supabaseClient.from('equipes').update(payload).eq('id', idEmEdicao)
+    : supabaseClient.from('equipes').insert(payload);
+
+  query.then(function (res) {
+    if (res.error) {
+      erroEl.innerHTML = '<p class="msg-erro">Erro ao salvar: ' + res.error.message + '</p>';
+      return;
+    }
+    cancelarEdicao();
+    carregarEquipes();
+  });
+}
+
+function iniciarEdicao(id) {
+  var e = equipesCache.find(function (x) { return x.id === id; });
+  if (!e) return;
+  idEmEdicao = id;
+  document.getElementById('titulo-form').textContent = 'Editar equipe';
+  document.getElementById('btn-salvar').textContent = 'Salvar edição';
+  document.getElementById('btn-cancelar').style.display = 'inline-block';
+
+  document.getElementById('eq-nome').value = e.nome;
+  document.getElementById('eq-tipo').value = e.tipo;
+  document.getElementById('eq-regional').value = e.regional || '';
+  document.getElementById('eq-local').value = e.local_base || '';
+  document.getElementById('eq-telefone').value = e.telefone || '';
+  document.getElementById('eq-email').value = e.email || '';
+  atualizarSelectIrma();
+  document.getElementById('eq-irma').value = e.equipe_irma_id || '';
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelarEdicao() {
+  idEmEdicao = null;
+  document.getElementById('titulo-form').textContent = 'Nova equipe';
+  document.getElementById('btn-salvar').textContent = 'Salvar equipe';
+  document.getElementById('btn-cancelar').style.display = 'none';
+  document.getElementById('eq-nome').value = '';
+  document.getElementById('eq-tipo').value = 'EMAD';
+  document.getElementById('eq-regional').value = '';
+  document.getElementById('eq-local').value = '';
+  document.getElementById('eq-telefone').value = '';
+  document.getElementById('eq-email').value = '';
+  atualizarSelectIrma();
+}
+
+function excluirEquipe(id) {
+  if (!confirm('Excluir esta equipe? Só é possível se não houver pessoas, ausências ou alocações vinculadas a ela.')) return;
+  supabaseClient.from('equipes').delete().eq('id', id).then(function (res) {
+    if (res.error) {
+      alert('Não foi possível excluir: ' + res.error.message + '\n\nProvavelmente existem lotações, ausências ou alocações referenciando essa equipe.');
+      return;
+    }
+    carregarEquipes();
+  });
+}
+
+authReady(initTela);
+</script>
+</body>
+</html>
