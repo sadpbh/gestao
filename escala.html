@@ -56,10 +56,11 @@
 
     <div class="card">
       <div id="grade-erro"></div>
-      <div class="grade-wrap">
+      <div class="grade-wrap" id="grade-wrap">
         <table class="grade" id="tabela-grade"></table>
       </div>
       <div class="legenda" id="legenda"></div>
+      <p style="font-size:11px;color:var(--texto-suave);margin-top:8px">Role para a direita para avançar os meses automaticamente.</p>
     </div>
   </div>
 </div>
@@ -92,6 +93,8 @@ var linhasGrade = [];
 var ausenciasMes = [];
 var alocacoesMes = [];
 var diasDoMes = [];
+var ultimoMesCarregado = null;
+var carregandoExtensao = false;
 
 function initTela() {
   document.getElementById('app').style.display = 'block';
@@ -115,6 +118,13 @@ function initTela() {
 
   carregarEquipes().then(carregarGrade);
   renderLegenda();
+
+  document.getElementById('grade-wrap').addEventListener('scroll', function () {
+    var el = this;
+    if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 150) {
+      estenderProximoMes();
+    }
+  });
 }
 
 function renderLegenda() {
@@ -151,6 +161,7 @@ function carregarGrade() {
   var categoria = document.getElementById('f-categoria').value;
   var mesStr = document.getElementById('f-mes').value;
   if (!mesStr) return;
+  ultimoMesCarregado = mesStr;
   diasDoMes = calcularDiasDoMes(mesStr);
   var iniMes = diasDoMes[0].iso;
   var fimMes = diasDoMes[diasDoMes.length - 1].iso;
@@ -208,6 +219,39 @@ function carregarGrade() {
 
     renderGrade();
   });
+}
+
+function proximoMesStr(mesStr) {
+  var partes = mesStr.split('-');
+  var ano = parseInt(partes[0], 10);
+  var mes = parseInt(partes[1], 10);
+  mes += 1;
+  if (mes > 12) { mes = 1; ano += 1; }
+  return ano + '-' + String(mes).padStart(2, '0');
+}
+
+function estenderProximoMes() {
+  if (carregandoExtensao || !ultimoMesCarregado) return;
+  carregandoExtensao = true;
+
+  var novoMesStr = proximoMesStr(ultimoMesCarregado);
+  var novosDias = calcularDiasDoMes(novoMesStr);
+  var iniMes = novosDias[0].iso;
+  var fimMes = novosDias[novosDias.length - 1].iso;
+
+  supabaseClient
+    .from('alocacoes')
+    .select('id, equipe_id, data, turno, pessoa_id, tipo, pessoas(nome)')
+    .gte('data', iniMes)
+    .lte('data', fimMes)
+    .then(function (res) {
+      carregandoExtensao = false;
+      if (res.error) return;
+      diasDoMes = diasDoMes.concat(novosDias);
+      alocacoesMes = alocacoesMes.concat(res.data || []);
+      ultimoMesCarregado = novoMesStr;
+      renderGrade();
+    });
 }
 
 function ausenciaPara(pessoaId, turno, dataIso) {
