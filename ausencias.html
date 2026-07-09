@@ -249,12 +249,13 @@ function onEquipeManualChange() {
 }
 
 function onBuscaPessoaInput() {
-  var termo = document.getElementById('busca-pessoa').value.trim().toLowerCase();
+  var termo = document.getElementById('busca-pessoa').value.trim();
+  termo = normalizarTexto(termo);
   var sugestoesEl = document.getElementById('busca-sugestoes');
   if (!termo) { sugestoesEl.style.display = 'none'; return; }
 
   var resultados = pessoasCache.filter(function (p) {
-    return p.nome.toLowerCase().indexOf(termo) !== -1;
+    return normalizarTexto(p.nome).indexOf(termo) !== -1;
   }).slice(0, 8);
 
   sugestoesEl.innerHTML = (resultados.length ? resultados.map(function (p) {
@@ -483,10 +484,11 @@ function carregarAusencias() {
 }
 
 function renderTabelaAusencias() {
-  var termo = document.getElementById('busca-lista').value.trim().toLowerCase();
+  var termo = document.getElementById('busca-lista').value.trim();
+  termo = normalizarTexto(termo);
   var lista = ausenciasCache.filter(function (a) {
     if (!termo) return true;
-    var nome = a.pessoas ? a.pessoas.nome.toLowerCase() : 'vaga';
+    var nome = a.pessoas ? normalizarTexto(a.pessoas.nome) : 'vaga';
     return nome.indexOf(termo) !== -1;
   });
 
