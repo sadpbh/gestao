@@ -169,12 +169,13 @@ function carregarPessoas() {
 }
 
 function onBuscaPessoaInput() {
-  var termo = document.getElementById('busca-pessoa').value.trim().toLowerCase();
+  var termo = document.getElementById('busca-pessoa').value.trim();
+  termo = normalizarTexto(termo);
   var sugestoesEl = document.getElementById('busca-sugestoes');
   if (!termo) { sugestoesEl.style.display = 'none'; return; }
 
   var resultados = pessoasCache.filter(function (p) {
-    return p.nome.toLowerCase().indexOf(termo) !== -1;
+    return normalizarTexto(p.nome).indexOf(termo) !== -1;
   }).slice(0, 8);
 
   sugestoesEl.innerHTML = (resultados.length ? resultados.map(function (p) {
@@ -284,11 +285,12 @@ function classeBadge(tipo) {
 }
 
 function renderTabela() {
-  var termo = document.getElementById('busca-lista').value.trim().toLowerCase();
+  var termo = document.getElementById('busca-lista').value.trim();
+  termo = normalizarTexto(termo);
   var tipoFiltro = document.getElementById('filtro-tipo').value;
 
   var lista = ocorrenciasCache.filter(function (o) {
-    var nome = o.pessoas ? o.pessoas.nome.toLowerCase() : '';
+    var nome = o.pessoas ? normalizarTexto(o.pessoas.nome) : '';
     var matchNome = !termo || nome.indexOf(termo) !== -1;
     var matchTipo = !tipoFiltro || o.tipo === tipoFiltro;
     return matchNome && matchTipo;
