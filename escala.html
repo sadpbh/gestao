@@ -86,6 +86,7 @@ var CODIGO_INFO = {
 var CODIGO_NORMAL = { codigo: 'C', bg: '#c8f4da', cor: '#16a34a' };
 var MOTIVOS_PERMITEM_EXTRA = ['Férias Prêmio','Folga - Serviço Eleitoral','Licença médica','Licença maternidade','Pausa Contratual','Falta não justificada','Licença Gala'];
 var DIA_SEMANA_LETRA = ['D','S','T','Q','Q','S','S']; // getDay(): 0=domingo
+var DIA_SEMANA_CODIGO = ['dom','seg','ter','qua','qui','sex','sab'];
 
 var equipesCache = [];
 var pessoasCache = [];
@@ -116,7 +117,13 @@ function initTela() {
   document.getElementById('f-mes').addEventListener('change', carregarGrade);
   document.getElementById('f-equipe').addEventListener('change', renderGrade);
 
-  carregarEquipes().then(carregarGrade);
+  carregarEquipes().then(function () {
+    return carregarGrade();
+  }).then(function () {
+    return estenderProximoMes();
+  }).then(function () {
+    return estenderProximoMes();
+  });
   renderLegenda();
 
   document.getElementById('grade-wrap').addEventListener('scroll', function () {
@@ -160,7 +167,7 @@ function calcularDiasDoMes(mesStr) {
 function carregarGrade() {
   var categoria = document.getElementById('f-categoria').value;
   var mesStr = document.getElementById('f-mes').value;
-  if (!mesStr) return;
+  if (!mesStr) return Promise.resolve();
   ultimoMesCarregado = mesStr;
   diasDoMes = calcularDiasDoMes(mesStr);
   var iniMes = diasDoMes[0].iso;
@@ -168,7 +175,7 @@ function carregarGrade() {
 
   var lotacoesQ = supabaseClient
     .from('lotacoes')
-    .select('id, turno, equipe_id, equipes(nome), contratos(pessoa_id, pessoas(nome, categoria, ativo))')
+    .select('id, turno, equipe_id, dias_semana, equipes(nome), contratos(pessoa_id, pessoas(nome, categoria, ativo))')
     .not('turno', 'is', null)
     .not('equipe_id', 'is', null);
 
@@ -182,7 +189,7 @@ function carregarGrade() {
     .gte('data', iniMes)
     .lte('data', fimMes);
 
-  Promise.all([lotacoesQ, ausenciasQ, alocacoesQ]).then(function (results) {
+  return Promise.all([lotacoesQ, ausenciasQ, alocacoesQ]).then(function (results) {
     var lotacoesRes = results[0], ausenciasRes = results[1], alocacoesRes = results[2];
 
     if (lotacoesRes.error || ausenciasRes.error || alocacoesRes.error) {
@@ -196,15 +203,17 @@ function carregarGrade() {
 
     linhasGrade = (lotacoesRes.data || [])
       .filter(function (l) {
-        return l.contratos && l.contratos.pessoas && l.contratos.pessoas.categoria === categoria && l.contratos.pessoas.ativo;
+        return l.contratos && l.contratos.pessoas && l.contratos.pessoas.categoria === categoria;
       })
       .map(function (l) {
         return {
           equipeId: l.equipe_id,
           equipeNome: l.equipes ? l.equipes.nome : '',
           turno: l.turno,
+          diasSemana: l.dias_semana || ['seg', 'ter', 'qua', 'qui', 'sex'],
           pessoaId: l.contratos.pessoa_id,
-          pessoaNome: l.contratos.pessoas.nome
+          pessoaNome: l.contratos.pessoas.nome,
+          pessoaAtiva: l.contratos.pessoas.ativo
         };
       });
 
@@ -231,7 +240,7 @@ function proximoMesStr(mesStr) {
 }
 
 function estenderProximoMes() {
-  if (carregandoExtensao || !ultimoMesCarregado) return;
+  if (carregandoExtensao || !ultimoMesCarregado) return Promise.resolve();
   carregandoExtensao = true;
 
   var novoMesStr = proximoMesStr(ultimoMesCarregado);
@@ -239,7 +248,7 @@ function estenderProximoMes() {
   var iniMes = novosDias[0].iso;
   var fimMes = novosDias[novosDias.length - 1].iso;
 
-  supabaseClient
+  return supabaseClient
     .from('alocacoes')
     .select('id, equipe_id, data, turno, pessoa_id, tipo, pessoas(nome)')
     .gte('data', iniMes)
@@ -296,17 +305,28 @@ function renderGrade() {
     }
     html +=
       '<td class="col-fixa col-fixa2">' + (l.turno === 'MANHA' ? 'Manhã' : l.turno === 'INTER' ? 'Inter' : 'Tarde') + '</td>' +
-      '<td class="col-fixa col-fixa3">' + l.pessoaNome + '</td>';
+      '<td class="col-fixa col-fixa3">' + (l.pessoaAtiva ? l.pessoaNome : '<em style="color:var(--texto-suave)">(Vaga) ' + l.pessoaNome + '</em>') + '</td>';
 
     diasDoMes.forEach(function (d) {
       var fimDeSemana = (d.dow === 0 || d.dow === 6);
-      var ausencia = fimDeSemana ? null : ausenciaPara(l.pessoaId, l.turno, d.iso);
+      var vaga = !l.pessoaAtiva;
+      var diaCodigo = DIA_SEMANA_CODIGO[d.dow];
+      var foraDaBase = !fimDeSemana && !vaga && l.diasSemana.indexOf(diaCodigo) === -1;
+      var ausencia = (fimDeSemana || vaga || foraDaBase) ? null : ausenciaPara(l.pessoaId, l.turno, d.iso);
       var info, codigo, tituloTip;
 
       if (fimDeSemana) {
         info = { bg: '#e8eaed', cor: '#9aa2ad' };
         codigo = '';
         tituloTip = 'Fim de semana';
+      } else if (vaga) {
+        info = CODIGO_INFO['Vacância do cargo'];
+        codigo = info.codigo;
+        tituloTip = 'Vaga — sem profissional';
+      } else if (foraDaBase) {
+        info = { bg: '#e8eaed', cor: '#9aa2ad' };
+        codigo = '';
+        tituloTip = 'Não atua nesta base neste dia';
       } else if (ausencia) {
         info = CODIGO_INFO[ausencia.motivo] || CODIGO_NORMAL;
         codigo = info.codigo;
@@ -317,9 +337,10 @@ function renderGrade() {
         tituloTip = 'Cobertura normal (sem ausência)';
       }
 
-      var coberturas = ausencia ? alocacoesPara(l.equipeId, l.turno, d.iso) : [];
+      var precisaCobertura = ausencia || (vaga && !fimDeSemana);
+      var coberturas = precisaCobertura ? alocacoesPara(l.equipeId, l.turno, d.iso) : [];
       var marcador = '';
-      if (ausencia) {
+      if (precisaCobertura) {
         marcador = coberturas.length > 0
           ? '<span class="marcador-ok"></span>'
           : '<span class="marcador-gap"></span>';
@@ -342,9 +363,28 @@ function abrirModalDia(equipeId, turno, dataIso, pessoaIdTitular) {
   var linha = linhasGrade.find(function (l) { return l.equipeId === equipeId && l.turno === turno && l.pessoaId === pessoaIdTitular; });
   var dataObj = new Date(dataIso + 'T00:00:00');
   var fimDeSemana = (dataObj.getDay() === 0 || dataObj.getDay() === 6);
-  var ausencia = fimDeSemana ? null : ausenciaPara(pessoaIdTitular, turno, dataIso);
-  var coberturas = ausencia ? alocacoesPara(equipeId, turno, dataIso) : [];
+  var vaga = !linha.pessoaAtiva;
+  var diaCodigo = DIA_SEMANA_CODIGO[dataObj.getDay()];
+  var foraDaBase = !fimDeSemana && !vaga && linha.diasSemana.indexOf(diaCodigo) === -1;
+  var ausencia = (fimDeSemana || vaga || foraDaBase) ? null : ausenciaPara(pessoaIdTitular, turno, dataIso);
+  var precisaCobertura = ausencia || (vaga && !fimDeSemana);
+  var coberturas = precisaCobertura ? alocacoesPara(equipeId, turno, dataIso) : [];
   var turnoLabel = turno === 'MANHA' ? 'Manhã' : turno === 'INTER' ? 'Intermediário' : 'Tarde';
+
+  var statusHtml;
+  if (vaga) {
+    statusHtml = '<p><strong>Vaga</strong> — posição sem profissional ativo.</p>';
+  } else if (fimDeSemana) {
+    statusHtml = '<p style="color:var(--texto-suave)">Fim de semana.</p>';
+  } else if (foraDaBase) {
+    statusHtml = '<p style="color:var(--texto-suave)">Esta pessoa não atua nesta base neste dia da semana.</p>';
+  } else if (ausencia) {
+    statusHtml = '<p><strong>Ausência:</strong> ' + ausencia.motivo + '</p>';
+  } else {
+    statusHtml = '<p style="color:var(--verde-escuro)"><strong>Sem ausência registrada</strong> (titular presente)</p>';
+  }
+
+  var podeRegistrarAusencia = !vaga && !fimDeSemana && !foraDaBase && !ausencia;
 
   var container = document.getElementById('modal-dia-container');
   container.innerHTML =
@@ -353,15 +393,54 @@ function abrirModalDia(equipeId, turno, dataIso, pessoaIdTitular) {
         '<button class="modal-fechar" onclick="fecharModalDia()">&times;</button>' +
         '<h3>' + dataIso.split('-').reverse().join('/') + '</h3>' +
         '<p class="modal-sub">' + linha.equipeNome + ' &middot; ' + turnoLabel + ' &middot; Titular: ' + linha.pessoaNome + '</p>' +
-        (ausencia
-          ? '<p><strong>Ausência:</strong> ' + ausencia.motivo + '</p>'
-          : '<p style="color:var(--verde-escuro)"><strong>Sem ausência registrada</strong> (titular presente)</p>') +
-        '<hr class="divisor">' +
-        '<h4 style="font-size:13px;margin-bottom:8px">Cobertura</h4>' +
-        '<div id="lista-coberturas">' + renderListaCoberturas(coberturas, equipeId, turno, dataIso) + '</div>' +
-        (ausencia && coberturas.length === 0 ? renderFormNovaCobertura(equipeId, turno, dataIso, ausencia) : '') +
+        statusHtml +
+        (podeRegistrarAusencia ? renderFormAusenciaRapida(equipeId, turno, dataIso, pessoaIdTitular) : '') +
+        (precisaCobertura ? (
+          '<hr class="divisor">' +
+          '<h4 style="font-size:13px;margin-bottom:8px">Cobertura</h4>' +
+          '<div id="lista-coberturas">' + renderListaCoberturas(coberturas, equipeId, turno, dataIso) + '</div>' +
+          (coberturas.length === 0 ? renderFormNovaCobertura(equipeId, turno, dataIso, ausencia, vaga) : '')
+        ) : '') +
       '</div>' +
     '</div>';
+}
+
+function renderFormAusenciaRapida(equipeId, turno, dataIso, pessoaId) {
+  return '<hr class="divisor">' +
+    '<h4 style="font-size:13px;margin-bottom:8px">Registrar ausência neste dia</h4>' +
+    '<div id="ausencia-rapida-erro"></div>' +
+    '<div class="form-field">' +
+      '<select id="ausencia-rapida-motivo">' +
+        '<option>Férias Regulamentares</option>' +
+        '<option>Férias Prêmio</option>' +
+        '<option>Licença médica</option>' +
+        '<option>Licença maternidade</option>' +
+        '<option>Licença paternidade</option>' +
+        '<option>Licença Gala</option>' +
+        '<option>Afastamento INSS</option>' +
+        '<option>Falta não justificada</option>' +
+        '<option>Pausa Contratual</option>' +
+        '<option>Folga</option>' +
+        '<option>Folga - Serviço Eleitoral</option>' +
+        '<option>Outro</option>' +
+      '</select>' +
+    '</div>' +
+    '<button class="btn-primario" onclick="salvarAusenciaRapida(\'' + equipeId + '\',\'' + turno + '\',\'' + dataIso + '\',\'' + pessoaId + '\')">Registrar</button>';
+}
+
+function salvarAusenciaRapida(equipeId, turno, dataIso, pessoaId) {
+  var motivo = document.getElementById('ausencia-rapida-motivo').value;
+  supabaseClient.from('ausencias').insert({
+    pessoa_id: pessoaId, equipe_id: equipeId, motivo: motivo, tipo_periodo: 'avulso',
+    turno: turno, dias: [dataIso]
+  }).then(function (res) {
+    if (res.error) {
+      document.getElementById('ausencia-rapida-erro').innerHTML = '<p class="msg-erro">Erro: ' + res.error.message + '</p>';
+      return;
+    }
+    fecharModalDia();
+    carregarGrade();
+  });
 }
 
 function renderListaCoberturas(coberturas, equipeId, turno, dataIso) {
@@ -376,6 +455,7 @@ function renderListaCoberturas(coberturas, equipeId, turno, dataIso) {
       '</span></div></div>';
   }).join('');
 }
+
 
 function mostrarEdicaoCobertura(coberturaId, equipeId, turno, dataIso) {
   var c = alocacoesMes.find(function (a) { return a.id === coberturaId; });
@@ -406,14 +486,15 @@ function mostrarEdicaoCobertura(coberturaId, equipeId, turno, dataIso) {
 }
 
 function onBuscaEdicaoInput(coberturaId) {
-  var termo = document.getElementById('edit-busca-pessoa-' + coberturaId).value.trim().toLowerCase();
+  var termo = document.getElementById('edit-busca-pessoa-' + coberturaId).value.trim();
+  termo = normalizarTexto(termo);
   var categoria = document.getElementById('f-categoria').value;
   var sugestoesEl = document.getElementById('edit-sugestoes-' + coberturaId);
   if (!termo) { sugestoesEl.style.display = 'none'; return; }
 
   carregarPessoasModalSeNecessario(function () {
     var resultados = pessoasCache.filter(function (p) {
-      return p.categoria === categoria && p.nome.toLowerCase().indexOf(termo) !== -1;
+      return p.categoria === categoria && normalizarTexto(p.nome).indexOf(termo) !== -1;
     }).slice(0, 8);
     sugestoesEl.innerHTML = resultados.map(function (p) {
       return '<div class="busca-sugestao-item" onclick="selecionarPessoaEdicao(\'' + coberturaId + '\',\'' + p.id + '\',\'' + p.nome.replace(/'/g, "\\'") + '\')">' + p.nome + '</div>';
@@ -437,8 +518,8 @@ function salvarEdicaoCobertura(coberturaId, equipeId, turno, dataIso) {
     fecharModalDia();
   });
 }
-function renderFormNovaCobertura(equipeId, turno, dataIso, ausencia) {
-  var extraPermitido = MOTIVOS_PERMITEM_EXTRA.indexOf(ausencia.motivo) !== -1;
+function renderFormNovaCobertura(equipeId, turno, dataIso, ausencia, vaga) {
+  var extraPermitido = vaga || (ausencia && MOTIVOS_PERMITEM_EXTRA.indexOf(ausencia.motivo) !== -1);
   return '<hr class="divisor">' +
     '<h4 style="font-size:13px;margin-bottom:8px">Adicionar cobertura</h4>' +
     '<div id="modal-form-erro"></div>' +
@@ -470,7 +551,8 @@ function carregarPessoasModalSeNecessario(callback) {
 }
 
 function onBuscaModalInput() {
-  var termo = document.getElementById('modal-busca-pessoa').value.trim().toLowerCase();
+  var termo = document.getElementById('modal-busca-pessoa').value.trim();
+  termo = normalizarTexto(termo);
   var categoria = document.getElementById('f-categoria').value;
   var sugestoesEl = document.getElementById('modal-sugestoes');
   modalPessoaSelecionadaId = null;
@@ -478,7 +560,7 @@ function onBuscaModalInput() {
 
   carregarPessoasModalSeNecessario(function () {
     var resultados = pessoasCache.filter(function (p) {
-      return p.categoria === categoria && p.nome.toLowerCase().indexOf(termo) !== -1;
+      return p.categoria === categoria && normalizarTexto(p.nome).indexOf(termo) !== -1;
     }).slice(0, 8);
     sugestoesEl.innerHTML = resultados.map(function (p) {
       return '<div class="busca-sugestao-item" onclick="selecionarPessoaModal(\'' + p.id + '\',\'' + p.nome.replace(/'/g, "\\'") + '\')">' + p.nome + '</div>';
