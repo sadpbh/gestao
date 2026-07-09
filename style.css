@@ -156,17 +156,18 @@ tr:last-child td { border-bottom: none; }
 .divisor { border: none; border-top: 1px solid var(--borda); margin: 16px 0; }
 
 /* ---------- Grade de escala ---------- */
-.grade-wrap { overflow-x: auto; }
+.grade-wrap { overflow: auto; max-height: 65vh; border: 1px solid var(--borda); border-radius: 8px; }
 table.grade { border-collapse: separate; border-spacing: 0; font-size: 11px; white-space: nowrap; }
 table.grade th, table.grade td { border: 1px solid var(--borda); padding: 0; text-align: center; }
 table.grade th.col-fixa, table.grade td.col-fixa {
-  position: sticky; left: 0; background: #fff; text-align: left; padding: 4px 8px; z-index: 5; white-space: normal;
+  position: sticky; left: 0; background: #fff; text-align: left; padding: 4px 8px; z-index: 5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 110px; max-width: 110px;
 }
-table.grade th.col-fixa2, table.grade td.col-fixa2 { left: 130px; }
-table.grade th.col-fixa3, table.grade td.col-fixa3 { left: 230px; }
+table.grade th.col-fixa2, table.grade td.col-fixa2 { left: 110px; width: 90px; max-width: 90px; }
+table.grade th.col-fixa3, table.grade td.col-fixa3 { left: 200px; width: 150px; max-width: 150px; }
 table.grade th { background: #fafbfc; font-size: 10px; padding: 3px 2px; position: sticky; top: 0; z-index: 8; }
-table.grade thead th.col-fixa { z-index: 15; }
-.dia-cel { width: 26px; height: 30px; cursor: pointer; font-weight: 700; position: relative; }
+table.grade thead th.col-fixa { z-index: 20; }
+.dia-cel { width: 28px; height: 30px; cursor: pointer; font-weight: 700; font-size: 9px; position: relative; overflow: hidden; }
 .dia-cel:hover { outline: 2px solid var(--verde); outline-offset: -2px; }
 .ponto-normal { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #16a34a; }
 tr.linha-novo-grupo td { border-top: 2px solid #c3cad6; }
