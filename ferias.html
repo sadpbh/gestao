@@ -184,10 +184,11 @@ function carregarEquipes() {
 }
 
 function onBuscaPessoaInput() {
-  var termo = document.getElementById('busca-pessoa').value.trim().toLowerCase();
+  var termo = document.getElementById('busca-pessoa').value.trim();
+  termo = normalizarTexto(termo);
   var sugestoesEl = document.getElementById('busca-sugestoes');
   if (!termo) { sugestoesEl.style.display = 'none'; return; }
-  var resultados = pessoasCache.filter(function (p) { return p.nome.toLowerCase().indexOf(termo) !== -1; }).slice(0, 8);
+  var resultados = pessoasCache.filter(function (p) { return normalizarTexto(p.nome).indexOf(termo) !== -1; }).slice(0, 8);
   sugestoesEl.innerHTML = (resultados.length ? resultados.map(function (p) {
     return '<div class="busca-sugestao-item" onclick="selecionarPessoa(\'' + p.id + '\')">' + p.nome + '</div>';
   }).join('') : '<div class="busca-sugestao-item">Nenhuma pessoa encontrada</div>');
