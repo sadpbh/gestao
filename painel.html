@@ -56,6 +56,17 @@
     </div>
 
     <div class="card">
+      <h2>Alertas de RH</h2>
+      <h3 style="font-size:12px;color:var(--texto-suave);margin:12px 0 6px">Pausas contratuais iniciando em breve (<span id="contador-pausas">0</span>)</h3>
+      <div id="lista-pausas"></div>
+      <div id="pausas-vazio" class="msg-vazio" style="display:none">Nenhuma pausa contratual próxima.</div>
+
+      <h3 style="font-size:12px;color:var(--texto-suave);margin:16px 0 6px">Retornos de licença maternidade em breve (<span id="contador-maternidade">0</span>)</h3>
+      <div id="lista-maternidade"></div>
+      <div id="maternidade-vazio" class="msg-vazio" style="display:none">Nenhum retorno de licença maternidade próximo.</div>
+    </div>
+
+    <div class="card">
       <h2>Ausências de hoje (<span id="contador-ausencias-hoje">0</span>)</h2>
       <div id="lista-ausencias-hoje"></div>
       <div id="ausencias-hoje-vazio" class="msg-vazio" style="display:none">Nenhuma ausência registrada para hoje.</div>
@@ -87,6 +98,7 @@ function initTela() {
 
   carregarStats();
   carregarContratosVencendo();
+  carregarAlertasRH();
   carregarAusenciasHoje();
 }
 
@@ -133,6 +145,65 @@ function carregarContratosVencendo() {
           '</div>';
       }).join('');
     });
+}
+
+function carregarAlertasRH() {
+  var hoje = hojeIso();
+  var limite = new Date();
+  limite.setDate(limite.getDate() + 30);
+  var limiteIso = limite.getFullYear() + '-' + String(limite.getMonth() + 1).padStart(2, '0') + '-' + String(limite.getDate()).padStart(2, '0');
+
+  supabaseClient
+    .from('ausencias')
+    .select('id, motivo, dias, pessoas(nome), equipes(nome)')
+    .in('motivo', ['Pausa Contratual', 'Licença maternidade'])
+    .then(function (res) {
+      if (res.error) return;
+      var registros = res.data || [];
+
+      var pausas = registros.filter(function (a) {
+        if (a.motivo !== 'Pausa Contratual' || !a.dias || a.dias.length === 0) return false;
+        var inicio = a.dias[0];
+        return inicio >= hoje && inicio <= limiteIso;
+      }).sort(function (a, b) { return a.dias[0].localeCompare(b.dias[0]); });
+
+      var maternidades = registros.filter(function (a) {
+        if (a.motivo !== 'Licença maternidade' || !a.dias || a.dias.length === 0) return false;
+        var fim = a.dias[a.dias.length - 1];
+        return fim >= hoje && fim <= limiteIso;
+      }).sort(function (a, b) { return a.dias[a.dias.length - 1].localeCompare(b.dias[b.dias.length - 1]); });
+
+      renderListaAlerta(pausas, 'lista-pausas', 'contador-pausas', 'pausas-vazio', function (a) {
+        var dias = Math.ceil((new Date(a.dias[0]) - new Date(hoje)) / 86400000);
+        return { data: a.dias[0], texto: 'Inicia em ' + dias + ' dias' };
+      });
+
+      renderListaAlerta(maternidades, 'lista-maternidade', 'contador-maternidade', 'maternidade-vazio', function (a) {
+        var fim = a.dias[a.dias.length - 1];
+        var dias = Math.ceil((new Date(fim) - new Date(hoje)) / 86400000);
+        return { data: fim, texto: 'Retorna em ' + dias + ' dias' };
+      });
+    });
+}
+
+function renderListaAlerta(lista, idLista, idContador, idVazio, calcular) {
+  document.getElementById(idContador).textContent = lista.length;
+  var vazio = document.getElementById(idVazio);
+  if (lista.length === 0) {
+    document.getElementById(idLista).innerHTML = '';
+    vazio.style.display = 'block';
+    return;
+  }
+  vazio.style.display = 'none';
+
+  document.getElementById(idLista).innerHTML = lista.map(function (a) {
+    var calc = calcular(a);
+    var tag = calc.texto.indexOf('em 0 dias') !== -1 || /em [0-7] dias/.test(calc.texto) ? 'tag-urgente' : 'tag-atencao';
+    return '<div class="item-linha">' +
+      '<span><span class="item-nome">' + (a.pessoas ? a.pessoas.nome : '—') + '</span> <span class="item-sub">' + (a.equipes ? a.equipes.nome : '—') + '</span></span>' +
+      '<span class="tag-pill ' + tag + '">' + calc.data.split('-').reverse().join('/') + ' &middot; ' + calc.texto + '</span>' +
+      '</div>';
+  }).join('');
 }
 
 function carregarAusenciasHoje() {
