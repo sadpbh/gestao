@@ -45,64 +45,21 @@
         <div class="form-field">
           <label>Categoria</label>
           <select id="np-categoria">
-            <optgroup label="EMAD">
-              <option value="medico">Médico</option>
-              <option value="enfermeiro">Enfermeiro</option>
-              <option value="tecnico_enfermagem">Técnico de Enfermagem</option>
-            </optgroup>
-            <optgroup label="EMAP">
-              <option value="assistente_social">Assistente Social</option>
-              <option value="fisioterapeuta">Fisioterapeuta</option>
-              <option value="fonoaudiologo">Fonoaudiólogo</option>
-              <option value="nutricionista">Nutricionista</option>
-              <option value="psicologo">Psicólogo</option>
-              <option value="terapeuta_ocupacional">Terapeuta Ocupacional</option>
-            </optgroup>
+            <option value="medico">Médico</option>
+            <option value="enfermeiro">Enfermeiro</option>
+            <option value="tecnico_enfermagem">Técnico de Enfermagem</option>
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-field">
-          <label>Conselho</label>
+          <label>Conselho (CRM/COREN)</label>
           <input id="np-conselho" type="text" placeholder="COREN 123456">
-        </div>
-        <div class="form-field">
-          <label>Validade do conselho</label>
-          <input id="np-validade-conselho" type="date">
         </div>
         <div class="form-field">
           <label>CPF</label>
           <input id="np-cpf" type="text" placeholder="000.000.000-00">
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-field">
-          <label>Data de nascimento</label>
-          <input id="np-nascimento" type="date">
-        </div>
-        <div class="form-field">
-          <label>Sexo</label>
-          <select id="np-sexo">
-            <option value="">Não informado</option>
-            <option value="feminino">Feminino</option>
-            <option value="masculino">Masculino</option>
-            <option value="outro">Outro</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-field">
-          <label>Telefone</label>
-          <input id="np-telefone" type="text">
-        </div>
-        <div class="form-field" style="flex:2">
-          <label>E-mail</label>
-          <input id="np-email-pessoal" type="email">
-        </div>
-      </div>
-      <div class="form-field">
-        <label>Endereço</label>
-        <input id="np-endereco" type="text">
       </div>
 
       <hr class="divisor">
@@ -118,10 +75,6 @@
             <option value="efetivo">Efetivo (sem término)</option>
             <option value="contrato">Contrato (com término)</option>
           </select>
-        </div>
-        <div class="form-field">
-          <label>Data de início</label>
-          <input id="np-inicio-contrato" type="date">
         </div>
         <div class="form-field" id="np-campo-termino" style="display:none">
           <label>Data de término</label>
@@ -194,12 +147,7 @@ var pessoasCache = [];
 var linhaExpandidaId = null;
 
 var DIA_LABEL = { seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb', dom: 'Dom' };
-var CATEGORIA_LABEL = {
-  medico: 'Médico', enfermeiro: 'Enfermeiro', tecnico_enfermagem: 'Técnico de Enfermagem',
-  assistente_social: 'Assistente Social', fisioterapeuta: 'Fisioterapeuta', fonoaudiologo: 'Fonoaudiólogo',
-  nutricionista: 'Nutricionista', psicologo: 'Psicólogo', terapeuta_ocupacional: 'Terapeuta Ocupacional'
-};
-var CATEGORIAS_SEM_TURNO = ['tecnico_enfermagem', 'assistente_social', 'fisioterapeuta', 'fonoaudiologo', 'nutricionista', 'psicologo', 'terapeuta_ocupacional'];
+var CATEGORIA_LABEL = { medico: 'Médico', enfermeiro: 'Enfermeiro', tecnico_enfermagem: 'Técnico de Enfermagem' };
 
 function initTela() {
   document.getElementById('app').style.display = 'block';
@@ -231,7 +179,7 @@ function atualizarOpcoesTurno() {
   var categoria = document.getElementById('np-categoria').value;
   var wrap = document.getElementById('np-campo-turno');
   var sel = document.getElementById('np-turno');
-  if (CATEGORIAS_SEM_TURNO.indexOf(categoria) !== -1) {
+  if (categoria === 'tecnico_enfermagem') {
     wrap.style.display = 'none';
   } else if (categoria === 'enfermeiro') {
     wrap.style.display = 'block';
@@ -254,7 +202,7 @@ function carregarEquipes() {
 function carregarPessoas() {
   supabaseClient
     .from('pessoas')
-    .select('id, nome, categoria, conselho, validade_conselho, cpf, data_nascimento, sexo, telefone, email, endereco, ativo, contratos(id, bm_m, tipo_contrato, data_termino_contrato, data_inicio_contrato, ativo, lotacoes(id, equipe_id, turno, horario_trabalho, dias_semana, escala_rotativa, equipes(nome)))')
+    .select('id, nome, categoria, conselho, cpf, ativo, motivo_inativacao, data_inativacao, contratos(id, bm_m, tipo_contrato, data_termino_contrato, ativo, lotacoes(id, equipe_id, turno, horario_trabalho, dias_semana, escala_rotativa, equipes(nome)))')
     .order('nome')
     .then(function (res) {
       if (res.error) {
@@ -282,9 +230,10 @@ function equipesDaPessoaLista(p) {
 }
 
 function renderTabela() {
-  var termo = document.getElementById('busca-nome').value.trim().toLowerCase();
+  var termo = document.getElementById('busca-nome').value.trim();
+  termo = normalizarTexto(termo);
   var lista = pessoasCache.filter(function (p) {
-    return !termo || p.nome.toLowerCase().indexOf(termo) !== -1;
+    return !termo || normalizarTexto(p.nome).indexOf(termo) !== -1;
   });
 
   document.getElementById('contador-pessoas').textContent = lista.length;
@@ -298,8 +247,11 @@ function renderTabela() {
   }
   vazio.style.display = 'none';
 
+  var ativos = lista.filter(function (p) { return p.ativo; });
+  var inativos = lista.filter(function (p) { return !p.ativo; });
+
   var grupos = {};
-  lista.forEach(function (p) {
+  ativos.forEach(function (p) {
     var equipesP = equipesDaPessoaLista(p);
     if (equipesP.length === 0) equipesP = ['Feristas / sem equipe fixa'];
     equipesP.forEach(function (nomeEquipe) {
@@ -314,7 +266,7 @@ function renderTabela() {
     return a.localeCompare(b);
   });
 
-  container.innerHTML = nomesGrupos.map(function (nomeGrupo) {
+  var html = nomesGrupos.map(function (nomeGrupo) {
     var linhasHtml = grupos[nomeGrupo].map(function (p) { return linhaPessoaHtml(p); }).join('');
     return '<div style="margin-bottom:22px">' +
       '<h3 style="font-size:13px;color:var(--texto-suave);margin-bottom:8px">' + nomeGrupo + ' (' + grupos[nomeGrupo].length + ')</h3>' +
@@ -322,6 +274,23 @@ function renderTabela() {
       '<tbody>' + linhasHtml + '</tbody></table>' +
       '</div>';
   }).join('');
+
+  if (inativos.length > 0) {
+    html += '<hr class="divisor">' +
+      '<h3 style="font-size:13px;color:var(--texto-suave);margin-bottom:8px">Histórico — Inativos (' + inativos.length + ')</h3>' +
+      '<table><thead><tr><th>Nome</th><th>Categoria</th><th>Motivo</th><th>Data</th><th></th></tr></thead>' +
+      '<tbody>' + inativos.map(function (p) {
+        return '<tr>' +
+          '<td>' + p.nome + '</td>' +
+          '<td>' + CATEGORIA_LABEL[p.categoria] + '</td>' +
+          '<td>' + (p.motivo_inativacao || '—') + '</td>' +
+          '<td>' + (p.data_inativacao ? p.data_inativacao.split('-').reverse().join('/') : '—') + '</td>' +
+          '<td><button class="btn-icon" onclick="alternarAtivo(\'' + p.id + '\',false)">Reativar</button></td>' +
+          '</tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  container.innerHTML = html;
 }
 
 function linhaPessoaHtml(p) {
@@ -378,10 +347,23 @@ function toggleDetalhe(id) {
 }
 
 function alternarAtivo(id, ativoAtual) {
-  supabaseClient.from('pessoas').update({ ativo: !ativoAtual }).eq('id', id).then(function (res) {
-    if (res.error) { alert('Erro: ' + res.error.message); return; }
-    carregarPessoas();
-  });
+  if (ativoAtual) {
+    var motivo = prompt('Motivo do desligamento/inativação:');
+    if (motivo === null) return;
+    supabaseClient.from('pessoas').update({
+      ativo: false, motivo_inativacao: motivo || null, data_inativacao: new Date().toISOString().slice(0, 10)
+    }).eq('id', id).then(function (res) {
+      if (res.error) { alert('Erro: ' + res.error.message); return; }
+      carregarPessoas();
+    });
+  } else {
+    supabaseClient.from('pessoas').update({
+      ativo: true, motivo_inativacao: null, data_inativacao: null
+    }).eq('id', id).then(function (res) {
+      if (res.error) { alert('Erro: ' + res.error.message); return; }
+      carregarPessoas();
+    });
+  }
 }
 
 function abrirEdicaoPessoa(id) {
@@ -396,39 +378,12 @@ function abrirEdicaoPessoa(id) {
         '<div id="edicao-pessoa-erro"></div>' +
         '<div class="form-field"><label>Nome</label><input id="ep-nome" type="text" value="' + p.nome.replace(/"/g, '&quot;') + '"></div>' +
         '<div class="form-field"><label>Categoria</label><select id="ep-categoria">' +
-          '<optgroup label="EMAD">' +
           '<option value="medico"' + (p.categoria === 'medico' ? ' selected' : '') + '>Médico</option>' +
           '<option value="enfermeiro"' + (p.categoria === 'enfermeiro' ? ' selected' : '') + '>Enfermeiro</option>' +
           '<option value="tecnico_enfermagem"' + (p.categoria === 'tecnico_enfermagem' ? ' selected' : '') + '>Técnico de Enfermagem</option>' +
-          '</optgroup>' +
-          '<optgroup label="EMAP">' +
-          '<option value="assistente_social"' + (p.categoria === 'assistente_social' ? ' selected' : '') + '>Assistente Social</option>' +
-          '<option value="fisioterapeuta"' + (p.categoria === 'fisioterapeuta' ? ' selected' : '') + '>Fisioterapeuta</option>' +
-          '<option value="fonoaudiologo"' + (p.categoria === 'fonoaudiologo' ? ' selected' : '') + '>Fonoaudiólogo</option>' +
-          '<option value="nutricionista"' + (p.categoria === 'nutricionista' ? ' selected' : '') + '>Nutricionista</option>' +
-          '<option value="psicologo"' + (p.categoria === 'psicologo' ? ' selected' : '') + '>Psicólogo</option>' +
-          '<option value="terapeuta_ocupacional"' + (p.categoria === 'terapeuta_ocupacional' ? ' selected' : '') + '>Terapeuta Ocupacional</option>' +
-          '</optgroup>' +
         '</select></div>' +
-        '<div class="form-row">' +
-          '<div class="form-field"><label>Conselho</label><input id="ep-conselho" type="text" value="' + (p.conselho || '') + '"></div>' +
-          '<div class="form-field"><label>Validade do conselho</label><input id="ep-validade-conselho" type="date" value="' + (p.validade_conselho || '') + '"></div>' +
-        '</div>' +
+        '<div class="form-field"><label>Conselho</label><input id="ep-conselho" type="text" value="' + (p.conselho || '') + '"></div>' +
         '<div class="form-field"><label>CPF</label><input id="ep-cpf" type="text" value="' + (p.cpf || '') + '"></div>' +
-        '<div class="form-row">' +
-          '<div class="form-field"><label>Data de nascimento</label><input id="ep-nascimento" type="date" value="' + (p.data_nascimento || '') + '"></div>' +
-          '<div class="form-field"><label>Sexo</label><select id="ep-sexo">' +
-            '<option value=""' + (!p.sexo ? ' selected' : '') + '>Não informado</option>' +
-            '<option value="feminino"' + (p.sexo === 'feminino' ? ' selected' : '') + '>Feminino</option>' +
-            '<option value="masculino"' + (p.sexo === 'masculino' ? ' selected' : '') + '>Masculino</option>' +
-            '<option value="outro"' + (p.sexo === 'outro' ? ' selected' : '') + '>Outro</option>' +
-          '</select></div>' +
-        '</div>' +
-        '<div class="form-row">' +
-          '<div class="form-field"><label>Telefone</label><input id="ep-telefone" type="text" value="' + (p.telefone || '') + '"></div>' +
-          '<div class="form-field" style="flex:2"><label>E-mail</label><input id="ep-email" type="email" value="' + (p.email || '') + '"></div>' +
-        '</div>' +
-        '<div class="form-field"><label>Endereço</label><input id="ep-endereco" type="text" value="' + (p.endereco || '') + '"></div>' +
         '<div class="form-field"><label><input id="ep-ativo" type="checkbox" style="width:auto"' + (p.ativo ? ' checked' : '') + '> Ativo</label></div>' +
         '<button class="btn-primario" onclick="salvarEdicaoPessoa(\'' + id + '\')">Salvar</button>' +
       '</div>' +
@@ -443,13 +398,7 @@ function salvarEdicaoPessoa(id) {
   var nome = document.getElementById('ep-nome').value.trim();
   var categoria = document.getElementById('ep-categoria').value;
   var conselho = document.getElementById('ep-conselho').value.trim() || null;
-  var validadeConselho = document.getElementById('ep-validade-conselho').value || null;
   var cpf = document.getElementById('ep-cpf').value.trim() || null;
-  var dataNascimento = document.getElementById('ep-nascimento').value || null;
-  var sexo = document.getElementById('ep-sexo').value || null;
-  var telefone = document.getElementById('ep-telefone').value.trim() || null;
-  var email = document.getElementById('ep-email').value.trim() || null;
-  var endereco = document.getElementById('ep-endereco').value.trim() || null;
   var ativo = document.getElementById('ep-ativo').checked;
 
   if (!nome) {
@@ -458,9 +407,7 @@ function salvarEdicaoPessoa(id) {
   }
 
   supabaseClient.from('pessoas').update({
-    nome: nome, categoria: categoria, conselho: conselho, validade_conselho: validadeConselho,
-    cpf: cpf, data_nascimento: dataNascimento, sexo: sexo, telefone: telefone, email: email,
-    endereco: endereco, ativo: ativo
+    nome: nome, categoria: categoria, conselho: conselho, cpf: cpf, ativo: ativo
   }).eq('id', id).then(function (res) {
     if (res.error) {
       document.getElementById('edicao-pessoa-erro').innerHTML = '<p class="msg-erro">Erro: ' + res.error.message + '</p>';
@@ -479,7 +426,7 @@ function mostrarFormNovoContrato(pessoaId) {
   var turnoOptions = pessoa.categoria === 'enfermeiro'
     ? '<option value="MANHA">Manhã</option><option value="INTER">Intermediário</option><option value="TARDE">Tarde</option>'
     : '<option value="MANHA">Manhã</option><option value="TARDE">Tarde</option>';
-  var mostrarTurno = CATEGORIAS_SEM_TURNO.indexOf(pessoa.categoria) === -1;
+  var mostrarTurno = pessoa.categoria !== 'tecnico_enfermagem';
 
   container.innerHTML =
     '<div class="contrato-bloco" style="background:' + '#fafbfc' + '">' +
@@ -487,7 +434,6 @@ function mostrarFormNovoContrato(pessoaId) {
       '<div class="form-field"><label>BM/M</label><input id="nc-bmm-' + pessoaId + '" type="text"></div>' +
       '<div class="form-field"><label>Tipo</label><select id="nc-tipo-' + pessoaId + '">' +
         '<option value="efetivo">Efetivo</option><option value="contrato">Contrato</option></select></div>' +
-      '<div class="form-field"><label>Início</label><input id="nc-inicio-' + pessoaId + '" type="date"></div>' +
       '<div class="form-field"><label>Término</label><input id="nc-termino-' + pessoaId + '" type="date"></div>' +
     '</div>' +
     '<div class="form-row">' +
@@ -502,7 +448,6 @@ function mostrarFormNovoContrato(pessoaId) {
 function salvarNovoContrato(pessoaId) {
   var bmm = document.getElementById('nc-bmm-' + pessoaId).value.trim();
   var tipo = document.getElementById('nc-tipo-' + pessoaId).value;
-  var inicio = document.getElementById('nc-inicio-' + pessoaId).value || null;
   var termino = document.getElementById('nc-termino-' + pessoaId).value || null;
   var equipeId = document.getElementById('nc-equipe-' + pessoaId).value || null;
   var horario = document.getElementById('nc-horario-' + pessoaId).value.trim();
@@ -512,7 +457,7 @@ function salvarNovoContrato(pessoaId) {
   if (!bmm) { alert('Informe o BM/M.'); return; }
 
   supabaseClient.from('contratos').insert({
-    pessoa_id: pessoaId, bm_m: bmm, tipo_contrato: tipo, data_inicio_contrato: inicio, data_termino_contrato: termino
+    pessoa_id: pessoaId, bm_m: bmm, tipo_contrato: tipo, data_termino_contrato: termino
   }).select().then(function (res) {
     if (res.error) { alert('Erro ao salvar contrato: ' + res.error.message); return; }
     var contratoId = res.data[0].id;
@@ -533,19 +478,12 @@ function salvarPessoa() {
   var nome = document.getElementById('np-nome').value.trim();
   var categoria = document.getElementById('np-categoria').value;
   var conselho = document.getElementById('np-conselho').value.trim() || null;
-  var validadeConselho = document.getElementById('np-validade-conselho').value || null;
   var cpf = document.getElementById('np-cpf').value.trim() || null;
-  var dataNascimento = document.getElementById('np-nascimento').value || null;
-  var sexo = document.getElementById('np-sexo').value || null;
-  var telefone = document.getElementById('np-telefone').value.trim() || null;
-  var email = document.getElementById('np-email-pessoal').value.trim() || null;
-  var endereco = document.getElementById('np-endereco').value.trim() || null;
   var bmm = document.getElementById('np-bmm').value.trim();
   var tipoContrato = document.getElementById('np-tipo-contrato').value;
-  var inicioContrato = document.getElementById('np-inicio-contrato').value || null;
   var termino = document.getElementById('np-termino').value || null;
   var equipeId = document.getElementById('np-equipe').value || null;
-  var turno = (CATEGORIAS_SEM_TURNO.indexOf(categoria) !== -1) ? null : document.getElementById('np-turno').value;
+  var turno = (categoria === 'tecnico_enfermagem') ? null : document.getElementById('np-turno').value;
   var horario = document.getElementById('np-horario').value.trim();
   var rotativa = document.getElementById('np-rotativa').checked;
   var dias = Array.prototype.slice.call(document.querySelectorAll('#np-dias input:checked')).map(function (el) { return el.value; });
@@ -554,9 +492,7 @@ function salvarPessoa() {
   if (!bmm) { erroEl.innerHTML = '<p class="msg-erro">Informe o BM/M do contrato inicial.</p>'; return; }
 
   supabaseClient.from('pessoas').insert({
-    nome: nome, categoria: categoria, conselho: conselho, validade_conselho: validadeConselho,
-    cpf: cpf, data_nascimento: dataNascimento, sexo: sexo, telefone: telefone, email: email,
-    endereco: endereco, ativo: true
+    nome: nome, categoria: categoria, conselho: conselho, cpf: cpf, ativo: true
   }).select().then(function (res) {
     if (res.error) {
       erroEl.innerHTML = '<p class="msg-erro">Erro ao salvar pessoa: ' + res.error.message + '</p>';
@@ -565,8 +501,7 @@ function salvarPessoa() {
     var pessoaId = res.data[0].id;
 
     supabaseClient.from('contratos').insert({
-      pessoa_id: pessoaId, bm_m: bmm, tipo_contrato: tipoContrato,
-      data_inicio_contrato: inicioContrato, data_termino_contrato: termino
+      pessoa_id: pessoaId, bm_m: bmm, tipo_contrato: tipoContrato, data_termino_contrato: termino
     }).select().then(function (res2) {
       if (res2.error) {
         erroEl.innerHTML = '<p class="msg-erro">Pessoa criada, mas erro ao salvar contrato: ' + res2.error.message + '</p>';
@@ -584,15 +519,8 @@ function salvarPessoa() {
         }
         document.getElementById('np-nome').value = '';
         document.getElementById('np-conselho').value = '';
-        document.getElementById('np-validade-conselho').value = '';
         document.getElementById('np-cpf').value = '';
-        document.getElementById('np-nascimento').value = '';
-        document.getElementById('np-sexo').value = '';
-        document.getElementById('np-telefone').value = '';
-        document.getElementById('np-email-pessoal').value = '';
-        document.getElementById('np-endereco').value = '';
         document.getElementById('np-bmm').value = '';
-        document.getElementById('np-inicio-contrato').value = '';
         document.getElementById('np-termino').value = '';
         document.getElementById('np-horario').value = '';
         carregarPessoas();
