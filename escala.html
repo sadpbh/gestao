@@ -94,6 +94,7 @@ var linhasGrade = [];
 var ausenciasMes = [];
 var alocacoesMes = [];
 var diasDoMes = [];
+var blocosMeses = []; // [{ mesStr, dias }] — um bloco por mês carregado, na ordem
 var ultimoMesCarregado = null;
 var carregandoExtensao = false;
 
@@ -170,6 +171,7 @@ function carregarGrade() {
   if (!mesStr) return Promise.resolve();
   ultimoMesCarregado = mesStr;
   diasDoMes = calcularDiasDoMes(mesStr);
+  blocosMeses = [{ mesStr: mesStr, dias: diasDoMes }];
   var iniMes = diasDoMes[0].iso;
   var fimMes = diasDoMes[diasDoMes.length - 1].iso;
 
@@ -257,6 +259,7 @@ function estenderProximoMes() {
       carregandoExtensao = false;
       if (res.error) return;
       diasDoMes = diasDoMes.concat(novosDias);
+      blocosMeses.push({ mesStr: novoMesStr, dias: novosDias });
       alocacoesMes = alocacoesMes.concat(res.data || []);
       ultimoMesCarregado = novoMesStr;
       renderGrade();
@@ -279,12 +282,22 @@ function alocacoesPara(equipeId, turno, dataIso) {
   });
 }
 
+function nomeMes(mesStr) {
+  var NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var partes = mesStr.split('-');
+  return NOMES[parseInt(partes[1], 10) - 1] + ' ' + partes[0];
+}
+
 function renderGrade() {
   var equipeFiltro = document.getElementById('f-equipe').value;
   var linhas = linhasGrade.filter(function (l) { return !equipeFiltro || l.equipeId === equipeFiltro; });
 
   var html = '<thead><tr>' +
-    '<th class="col-fixa">Equipe</th><th class="col-fixa col-fixa2">Turno</th><th class="col-fixa col-fixa3">Titular</th>';
+    '<th class="col-fixa" rowspan="2">Equipe</th><th class="col-fixa col-fixa2" rowspan="2">Turno</th><th class="col-fixa col-fixa3" rowspan="2">Titular</th>';
+  blocosMeses.forEach(function (bloco) {
+    html += '<th class="col-mes" colspan="' + bloco.dias.length + '">' + nomeMes(bloco.mesStr) + '</th>';
+  });
+  html += '</tr><tr>';
   diasDoMes.forEach(function (d) {
     html += '<th>' + d.letra + '<br>' + d.numero + '</th>';
   });
