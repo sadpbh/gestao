@@ -127,8 +127,11 @@ function initTela() {
   });
   renderLegenda();
 
+  var ultimoScrollLeft = 0;
   document.getElementById('grade-wrap').addEventListener('scroll', function () {
     var el = this;
+    if (el.scrollLeft === ultimoScrollLeft) return;
+    ultimoScrollLeft = el.scrollLeft;
     if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 150) {
       estenderProximoMes();
     }
