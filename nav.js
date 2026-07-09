@@ -5,6 +5,15 @@
 // depois que window.meuAcesso já estiver resolvido (dentro de
 // authReady).
 // ============================================================
+// ============================================================
+// Utilitário compartilhado: normaliza texto para busca sem
+// distinção de acento/caixa (ex: "jose" encontra "José").
+// ============================================================
+function normalizarTexto(s) {
+  if (!s) return '';
+  return s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 function renderNav(paginaAtiva) {
   var el = document.getElementById('nav-menu');
   if (!el) return;
@@ -18,14 +27,11 @@ function renderNav(paginaAtiva) {
       { chave: 'acessos', label: 'Acessos', href: 'acessos.html' },
       { chave: 'pessoas', label: 'Pessoas', href: 'pessoas.html' },
       { chave: 'ausencias', label: 'Ausências', href: 'ausencias.html' },
-      { chave: 'escala', label: 'Escala', href: 'escala.html' },
-      { chave: 'ferias', label: 'Férias', href: 'ferias.html' },
-      { chave: 'ocorrencias', label: 'Ocorrências', href: 'ocorrencias.html' }
+      { chave: 'escala', label: 'Escala', href: 'escala.html' }
     ],
     equipe: [
       { chave: 'ausencias', label: 'Ausências', href: 'ausencias.html' },
-      { chave: 'escala', label: 'Escala', href: 'escala.html' },
-      { chave: 'ferias', label: 'Férias', href: 'ferias.html' }
+      { chave: 'escala', label: 'Escala', href: 'escala.html' }
     ],
     pessoa: [
       { chave: 'minha_escala', label: 'Minha Escala', href: 'minha_escala.html' }
